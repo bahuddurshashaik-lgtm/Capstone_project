@@ -1,8 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fsPromises from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { NotFoundError, StoreError, ValidationError } from '../../src/domain/errors.js';
 import { createTaskRecord } from '../../src/domain/task.js';
 import { createTaskService } from '../../src/services/task-service.js';
+import { createTaskStore } from '../../src/storage/task-store.js';
 
 // ---- test doubles ----
 
@@ -339,4 +343,317 @@ test('the task returned by getTask is a copy; changing it does not change the st
   task.title = 'Changed by caller';
 
   assert.equal(store.snapshot()[0].title, 'Original');
+});
+
+// ---- updateTask ----
+
+const editInput = { title: 'New title', description: 'new text', priority: 'Low', dueDate: '2026-12-01' };
+
+test('updateTask changes only the four editable fields and keeps id, createdAt and status', async () => {
+  const original = seedTask({ id: 'a' });
+  const { service, store } = setup({ tasks: [original] });
+
+  const task = await service.updateTask('a', editInput);
+
+  assert.deepEqual(
+    { title: task.title, description: task.description, priority: task.priority, dueDate: task.dueDate },
+    editInput,
+  );
+  assert.equal(task.id, 'a');
+  assert.equal(task.createdAt, original.createdAt);
+  assert.equal(task.status, 'Open');
+  assert.equal(task.completedAt, null);
+  assert.equal(task.overdue, false);
+  assert.equal(store.writes, 1);
+  assert.equal(store.snapshot()[0].title, 'New title');
+  assert.ok(!('overdue' in store.snapshot()[0]));
+});
+
+test('updateTask trims the title and can clear the due date', async () => {
+  const { service } = setup({ tasks: [seedTask({ id: 'a', dueDate: '2026-12-01' })] });
+
+  const task = await service.updateTask('a', { ...editInput, title: '  Trimmed  ', dueDate: null });
+
+  assert.equal(task.title, 'Trimmed');
+  assert.equal(task.dueDate, null);
+});
+
+test('updateTask on a Completed task keeps it Completed with its completedAt', async () => {
+  const completed = seedTask({ id: 'a', status: 'Completed', completedAt: '2026-11-02T10:00:00.000Z' });
+  const { service } = setup({ tasks: [completed] });
+
+  const task = await service.updateTask('a', editInput);
+
+  assert.equal(task.status, 'Completed');
+  assert.equal(task.completedAt, '2026-11-02T10:00:00.000Z');
+  assert.equal(task.title, 'New title');
+});
+
+test('updateTask keeps the task at its position in the list', async () => {
+  const { service } = setup({ tasks: [seedTask({ id: 'a' }), seedTask({ id: 'b' }), seedTask({ id: 'c' })] });
+
+  await service.updateTask('a', editInput);
+
+  const { tasks } = await service.listTasks();
+  assert.deepEqual(tasks.map((task) => task.id), ['c', 'b', 'a']);
+});
+
+test('updateTask with invalid fields raises ValidationError and changes nothing', async () => {
+  const original = seedTask({ id: 'a' });
+  const { service, store } = setup({ tasks: [original] });
+
+  const error = await captureError(
+    service.updateTask('a', { ...editInput, title: '', priority: 'Urgent', dueDate: '2026-11-04' }),
+  );
+
+  assert.ok(error instanceof ValidationError);
+  assert.deepEqual(Object.keys(error.fields).sort(), ['dueDate', 'priority', 'title']);
+  assert.equal(store.writes, 0);
+  assert.deepEqual(store.snapshot(), [original]);
+});
+
+test('updateTask requires all four keys', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const error = await captureError(service.updateTask('a', { title: 'Only a title' }));
+
+  assert.deepEqual(error.fields, {
+    description: 'This field is required.',
+    priority: 'This field is required.',
+    dueDate: 'This field is required.',
+  });
+  assert.equal(store.writes, 0);
+});
+
+test('updateTask rejects status, id and createdAt as unknown fields', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const error = await captureError(
+    service.updateTask('a', { ...editInput, status: 'Completed', id: 'x', createdAt: '2020-01-01T00:00:00.000Z' }),
+  );
+
+  assert.deepEqual(error.fields, {
+    status: 'Unknown field.',
+    id: 'Unknown field.',
+    createdAt: 'Unknown field.',
+  });
+  assert.equal(store.writes, 0);
+});
+
+test('updateTask accepts an unchanged past due date and rejects a changed one', async () => {
+  const { service } = setup({ tasks: [seedTask({ id: 'a', dueDate: '2026-10-01' })] });
+
+  const kept = await service.updateTask('a', { ...editInput, dueDate: '2026-10-01' });
+  assert.equal(kept.dueDate, '2026-10-01');
+  assert.equal(kept.overdue, true);
+
+  const error = await captureError(service.updateTask('a', { ...editInput, dueDate: '2026-10-02' }));
+  assert.equal(error.fields.dueDate, 'Due date cannot be in the past.');
+});
+
+test('updateTask of an unknown id raises NotFoundError and writes nothing', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const error = await captureError(service.updateTask('missing', editInput));
+
+  assert.ok(error instanceof NotFoundError);
+  assert.equal(error.message, 'Task not found');
+  assert.equal(store.writes, 0);
+});
+
+test('updateTask of an unknown id reports Not Found even when the body is invalid', async () => {
+  const { service } = setup();
+
+  assert.ok((await captureError(service.updateTask('missing', { title: '' }))) instanceof NotFoundError);
+});
+
+// ---- setStatus ----
+
+test('setStatus to Completed sets completedAt from the clock', async () => {
+  const { service, store, clock } = setup({ tasks: [seedTask({ id: 'a', dueDate: '2026-11-01' })] });
+  clock.set(new Date('2026-11-05T09:30:00.000Z'));
+
+  const task = await service.setStatus('a', { status: 'Completed' });
+
+  assert.equal(task.status, 'Completed');
+  assert.equal(task.completedAt, '2026-11-05T09:30:00.000Z');
+  assert.equal(task.overdue, false);
+  assert.equal(store.snapshot()[0].completedAt, '2026-11-05T09:30:00.000Z');
+  assert.equal(store.writes, 1);
+});
+
+test('setStatus back to Open clears completedAt and a past-due task is overdue again', async () => {
+  const completed = seedTask({
+    id: 'a',
+    dueDate: '2026-11-01',
+    status: 'Completed',
+    completedAt: '2026-11-02T10:00:00.000Z',
+  });
+  const { service } = setup({ tasks: [completed] });
+
+  const task = await service.setStatus('a', { status: 'Open' });
+
+  assert.equal(task.status, 'Open');
+  assert.equal(task.completedAt, null);
+  assert.equal(task.overdue, true);
+});
+
+test('setStatus to the same status keeps the first completedAt and writes nothing', async () => {
+  const { service, store, clock } = setup({ tasks: [seedTask({ id: 'a' })] });
+  clock.set(new Date('2026-11-05T09:30:00.000Z'));
+  const first = await service.setStatus('a', { status: 'Completed' });
+  clock.set(new Date('2026-11-05T15:45:00.000Z'));
+
+  const second = await service.setStatus('a', { status: 'Completed' });
+
+  assert.equal(second.completedAt, first.completedAt);
+  assert.equal(store.writes, 1);
+});
+
+test('setStatus Open on an Open task changes nothing and writes nothing', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const task = await service.setStatus('a', { status: 'Open' });
+
+  assert.equal(task.status, 'Open');
+  assert.equal(task.completedAt, null);
+  assert.equal(store.writes, 0);
+});
+
+test('setStatus changes only the status and completedAt', async () => {
+  const original = seedTask({ id: 'a', title: 'Keep me', priority: 'High', dueDate: '2026-12-01' });
+  const { service } = setup({ tasks: [original] });
+
+  const task = await service.setStatus('a', { status: 'Completed' });
+
+  assert.equal(task.title, 'Keep me');
+  assert.equal(task.priority, 'High');
+  assert.equal(task.dueDate, '2026-12-01');
+  assert.equal(task.createdAt, original.createdAt);
+});
+
+test('setStatus with an invalid status raises ValidationError and changes nothing', async () => {
+  const original = seedTask({ id: 'a' });
+  const { service, store } = setup({ tasks: [original] });
+
+  for (const body of [{ status: 'Done' }, {}, { status: 'Open', extra: 1 }, null, 'Open']) {
+    const error = await captureError(service.setStatus('a', body));
+    assert.ok(error instanceof ValidationError);
+  }
+  assert.equal(store.writes, 0);
+  assert.deepEqual(store.snapshot(), [original]);
+});
+
+test('setStatus of an unknown id raises NotFoundError and writes nothing', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const error = await captureError(service.setStatus('missing', { status: 'Completed' }));
+
+  assert.ok(error instanceof NotFoundError);
+  assert.equal(store.writes, 0);
+});
+
+// ---- deleteTask ----
+
+test('deleteTask removes only that task and returns nothing', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' }), seedTask({ id: 'b' }), seedTask({ id: 'c' })] });
+
+  const result = await service.deleteTask('b');
+
+  assert.equal(result, undefined);
+  assert.deepEqual(store.snapshot().map((task) => task.id), ['a', 'c']);
+  assert.equal(store.writes, 1);
+  assert.ok((await captureError(service.getTask('b'))) instanceof NotFoundError);
+});
+
+test('deleteTask of an unknown id raises NotFoundError and writes nothing', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const error = await captureError(service.deleteTask('missing'));
+
+  assert.ok(error instanceof NotFoundError);
+  assert.equal(error.message, 'Task not found');
+  assert.equal(store.writes, 0);
+});
+
+test('deleting the same task twice raises NotFoundError the second time', async () => {
+  const { service } = setup({ tasks: [seedTask({ id: 'a' })] });
+  await service.deleteTask('a');
+
+  assert.ok((await captureError(service.deleteTask('a'))) instanceof NotFoundError);
+});
+
+test('after a delete, update and status change of that task raise NotFoundError', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+  await service.deleteTask('a');
+
+  assert.ok((await captureError(service.updateTask('a', editInput))) instanceof NotFoundError);
+  assert.ok((await captureError(service.setStatus('a', { status: 'Completed' }))) instanceof NotFoundError);
+  assert.equal(store.writes, 1);
+});
+
+// ---- lookup and change are one step (AD-1) ----
+
+test('a delete that arrives first makes the parallel edit and status change raise NotFoundError', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const outcomes = await Promise.allSettled([
+    service.deleteTask('a'),
+    service.updateTask('a', editInput),
+    service.setStatus('a', { status: 'Completed' }),
+  ]);
+
+  assert.equal(outcomes[0].status, 'fulfilled');
+  assert.ok(outcomes[1].reason instanceof NotFoundError);
+  assert.ok(outcomes[2].reason instanceof NotFoundError);
+  assert.equal(store.snapshot().length, 0);
+});
+
+test('two parallel deletes of one task give one success and one NotFoundError', async () => {
+  const { service } = setup({ tasks: [seedTask({ id: 'a' })] });
+
+  const outcomes = await Promise.allSettled([service.deleteTask('a'), service.deleteTask('a')]);
+
+  assert.deepEqual(outcomes.map((outcome) => outcome.status).sort(), ['fulfilled', 'rejected']);
+  assert.ok(outcomes.find((outcome) => outcome.status === 'rejected').reason instanceof NotFoundError);
+});
+
+test('parallel edits of different tasks keep every change', async () => {
+  const { service, store } = setup({ tasks: [seedTask({ id: 'a' }), seedTask({ id: 'b' })] });
+
+  await Promise.all([
+    service.updateTask('a', { ...editInput, title: 'A changed' }),
+    service.updateTask('b', { ...editInput, title: 'B changed' }),
+    service.setStatus('a', { status: 'Completed' }),
+  ]);
+
+  const [a, b] = store.snapshot();
+  assert.equal(a.title, 'A changed');
+  assert.equal(a.status, 'Completed');
+  assert.equal(b.title, 'B changed');
+});
+
+test('the service works with the real task store and survives a restart', async () => {
+  const directory = await fsPromises.mkdtemp(join(tmpdir(), 'todo-service-'));
+  try {
+    const filePath = join(directory, 'tasks.json');
+    const clock = createClock(at(2026, 11, 5));
+    const service = createTaskService({ store: createTaskStore({ filePath }), clock });
+    const created = await service.createTask(goodInput);
+    await service.updateTask(created.id, editInput);
+    await service.setStatus(created.id, { status: 'Completed' });
+
+    const restarted = createTaskService({ store: createTaskStore({ filePath }), clock });
+    const task = await restarted.getTask(created.id);
+
+    assert.equal(task.title, 'New title');
+    assert.equal(task.status, 'Completed');
+    await restarted.deleteTask(created.id);
+    assert.deepEqual(await createTaskService({ store: createTaskStore({ filePath }), clock }).listTasks(), {
+      tasks: [],
+      total: 0,
+    });
+  } finally {
+    await fsPromises.rm(directory, { recursive: true, force: true });
+  }
 });
