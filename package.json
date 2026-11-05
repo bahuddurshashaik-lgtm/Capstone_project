@@ -1,0 +1,20 @@
+{
+  "name": "todo-application",
+  "version": "0.1.0",
+  "description": "To Do application delivered through an agentic SDLC pipeline driven by GitHub Copilot.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "stories:md": "node scripts/user-stories/export-markdown.mjs",
+    "confluence:publish:dry": "node scripts/confluence/publish-user-stories.mjs --dry-run",
+    "confluence:publish": "node scripts/confluence/publish-user-stories.mjs",
+    "confluence:fetch": "node scripts/confluence/fetch-page.mjs",
+    "mcp:confluence": "node scripts/mcp/confluence-server.mjs",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
+    "check": "node scripts/validate-workspace.mjs"
+  }
+}
