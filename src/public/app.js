@@ -7,8 +7,10 @@ const ELEMENT_IDS = Object.freeze({
   banner: 'banner',
   statusMessage: 'status-message',
   taskForm: 'task-form',
+  formHeading: 'form-heading',
   formError: 'form-error',
   submitButton: 'submit-button',
+  cancelEditButton: 'cancel-edit-button',
   filterForm: 'filter-form',
   filterStatus: 'filter-status',
   filterPriority: 'filter-priority',
@@ -37,6 +39,7 @@ const state = {
   tasksById: new Map(),
   refreshCount: 0,
   busy: false,
+  editingId: null,
 };
 
 // ---- DOM helpers ----
@@ -107,6 +110,12 @@ function reportError(error) {
   return info.refresh ? refreshList() : undefined;
 }
 
+// A missing task closes the edit form for that task and refreshes the list (FR-21, FR-28, FR-32).
+function handleTaskError(error, taskId) {
+  if (describeError(error).refresh && state.editingId === taskId) leaveEditMode();
+  return reportError(error);
+}
+
 // ---- task list rendering ----
 
 function buildBadge(cue) {
@@ -134,6 +143,19 @@ function buildTaskMeta(view) {
   return list;
 }
 
+function buildActionButton({ action, label, accessibleName }) {
+  return createElement('button', {
+    text: label,
+    attributes: { type: 'button', 'data-action': action, 'aria-label': accessibleName },
+  });
+}
+
+function buildTaskActions(view) {
+  const actions = createElement('div', { className: 'task-actions' });
+  actions.append(buildActionButton({ action: 'edit', label: 'Edit', accessibleName: `Edit: ${view.title}` }));
+  return actions;
+}
+
 function buildTaskItem(view) {
   const item = createElement('li', {
     className: `task task-${view.cue?.kind ?? 'open'}`,
@@ -143,6 +165,7 @@ function buildTaskItem(view) {
   if (view.description) item.append(createElement('p', { className: 'task-description', text: view.description }));
   item.append(buildTaskMeta(view));
   if (view.completedText) item.append(createElement('p', { className: 'task-completed-at', text: view.completedText }));
+  item.append(buildTaskActions(view));
   return item;
 }
 
@@ -254,12 +277,12 @@ function showFieldErrors(fields) {
   firstInvalidInput()?.focus();
 }
 
-function handleFormError(error) {
+function handleFormError(error, taskId = null) {
   if (describeError(error).display === 'fields') {
     showFieldErrors(error.fields);
     return undefined;
   }
-  return reportError(error);
+  return handleTaskError(error, taskId);
 }
 
 async function submitCreate() {
@@ -275,23 +298,97 @@ async function submitCreate() {
   ui.fields.title.input.focus();
 }
 
+// ---- task form: edit (FR-18..FR-22) ----
+
+function fillForm(task) {
+  ui.fields.title.input.value = task.title;
+  ui.fields.description.input.value = task.description ?? '';
+  ui.fields.priority.input.value = task.priority;
+  ui.fields.dueDate.input.value = task.dueDate ?? '';
+}
+
+function enterEditMode(task) {
+  clearFieldErrors();
+  state.editingId = task.id;
+  fillForm(task);
+  ui.formHeading.textContent = 'Edit task';
+  ui.submitButton.textContent = 'Save changes';
+  ui.cancelEditButton.hidden = false;
+  ui.fields.title.input.focus();
+}
+
+function leaveEditMode() {
+  state.editingId = null;
+  ui.taskForm.reset();
+  clearFieldErrors();
+  ui.formHeading.textContent = 'Add a task';
+  ui.submitButton.textContent = 'Add task';
+  ui.cancelEditButton.hidden = true;
+}
+
+async function startEdit(id) {
+  const result = await api.getTask(id);
+  if (!result.ok) {
+    await handleTaskError(result.error, id);
+    return;
+  }
+  enterEditMode(result.data);
+}
+
+function cancelEdit() {
+  const id = state.editingId;
+  leaveEditMode();
+  showMessage('Edit cancelled. The task was not changed.');
+  focusTaskAction(id, 'edit');
+}
+
+async function submitEdit() {
+  clearFieldErrors();
+  const id = state.editingId;
+  const result = await api.updateTask(id, readFormInput());
+  if (!result.ok) {
+    await handleFormError(result.error, id);
+    return;
+  }
+  leaveEditMode();
+  showMessage('Task saved.');
+  await refreshList();
+  focusTaskAction(id, 'edit');
+}
+
 async function onFormSubmit(event) {
   event.preventDefault();
   if (state.busy) return;
   state.busy = true;
   ui.submitButton.disabled = true;
   try {
-    await submitCreate();
+    await (state.editingId ? submitEdit() : submitCreate());
   } finally {
     state.busy = false;
     ui.submitButton.disabled = false;
   }
 }
 
+// ---- task actions ----
+
+const TASK_ACTIONS = Object.freeze({
+  edit: startEdit,
+});
+
+function onListClick(event) {
+  const button = event.target.closest('button[data-action]');
+  if (!button || !ui.taskList.contains(button)) return;
+  const handler = TASK_ACTIONS[button.dataset.action];
+  const id = button.closest('li')?.dataset.id;
+  if (handler && id) handler(id, button);
+}
+
 // ---- start ----
 
 function bindEvents() {
   ui.taskForm.addEventListener('submit', onFormSubmit);
+  ui.cancelEditButton.addEventListener('click', cancelEdit);
+  ui.taskList.addEventListener('click', onListClick);
   ui.filterForm.addEventListener('submit', (event) => event.preventDefault());
   ui.filterForm.addEventListener('change', applyFilters);
   ui.clearFilters.addEventListener('click', clearAllFilters);
