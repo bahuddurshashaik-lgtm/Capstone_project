@@ -77,7 +77,7 @@ Inputs: `docs/sdlc/requirements.md` (FR-1..FR-34, NFR-1..NFR-12), `docs/sdlc/arc
 | T-32 | Concurrency tests: parallel creates keep every task; parallel edits of different tasks keep every change; delete racing an edit of one task gives one success and one 404; the file stays valid. | `tests/integration/concurrency.test.js` | NFR-9, FR-21, FR-32, AD-1 | P1 | T-19, T-20, T-21 | S | Done |
 | T-33 | Performance test: seed 1,000 tasks, call the HTTP API on loopback, repeat each operation 20 times, assert the 95th percentile within 200 ms (create, edit, toggle, delete) and 300 ms (list and filter). | `tests/integration/performance.test.js` | NFR-4, NFR-5, AD-12 | P1 | T-17..T-21 | S | Done |
 | T-34 | Documentation: README run instructions (start command, `PORT`, `TODO_DATA_FILE`, data file location, run one instance only, supported browsers) and a CHANGELOG entry. | `README.md`, `CHANGELOG.md` | NFR-3 (AR-2) | P2 | T-22 | S | Done |
-| T-35 | Final gate: run `npm test`, `npm run test:scripts` and `npm run check`; confirm every FR and NFR in section 4 has a passing test or a manual checklist item; hand over to the verification step. | none (run only) | NFR-12 | P2 | T-1..T-34 | S | Not started |
+| T-35 | Final gate: run `npm test`, `npm run test:scripts` and `npm run check`; confirm every FR and NFR in section 4 has a passing test or a manual checklist item; hand over to the verification step. | none (run only) | NFR-12 | P2 | T-1..T-34 | S | Done |
 
 ## 3. Acceptance and test checks
 
