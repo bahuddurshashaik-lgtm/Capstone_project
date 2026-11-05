@@ -1,5 +1,5 @@
 import { createApiClient } from './api-client.js';
-import { describeError, describeTask, emptyStateMessage, listSummaryText } from './view-model.js';
+import { describeError, describeTask, emptyStateMessage, listSummaryText, toggleAction } from './view-model.js';
 
 // Task text is always written with textContent (NFR-1). This file never builds markup from strings.
 
@@ -152,7 +152,14 @@ function buildActionButton({ action, label, accessibleName }) {
 
 function buildTaskActions(view) {
   const actions = createElement('div', { className: 'task-actions' });
-  actions.append(buildActionButton({ action: 'edit', label: 'Edit', accessibleName: `Edit: ${view.title}` }));
+  actions.append(
+    buildActionButton({ action: 'edit', label: 'Edit', accessibleName: `Edit: ${view.title}` }),
+    buildActionButton({
+      action: 'toggle',
+      label: view.toggle.label,
+      accessibleName: `${view.toggle.label}: ${view.title}`,
+    }),
+  );
   return actions;
 }
 
@@ -371,8 +378,28 @@ async function onFormSubmit(event) {
 
 // ---- task actions ----
 
+function focusListHeadingIfFocusLost() {
+  const active = document.activeElement;
+  if (!active || active === document.body) ui.listHeading.focus();
+}
+
+// The button sends the opposite of the status shown, so a repeated click is idempotent (FR-23, FR-26).
+async function toggleTask(id) {
+  const task = state.tasksById.get(id);
+  if (!task) return;
+  const result = await api.setStatus(id, toggleAction(task).nextStatus);
+  if (!result.ok) {
+    await handleTaskError(result.error, id);
+    return;
+  }
+  showMessage(result.data.status === 'Completed' ? 'Task marked complete.' : 'Task reopened.');
+  await refreshList();
+  focusListHeadingIfFocusLost();
+}
+
 const TASK_ACTIONS = Object.freeze({
   edit: startEdit,
+  toggle: toggleTask,
 });
 
 function onListClick(event) {
