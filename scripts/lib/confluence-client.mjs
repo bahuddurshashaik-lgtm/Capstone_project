@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ROOT } from './stories.mjs';
 
-export async function loadEnvFile(file = path.join(ROOT, '.env')) {
+export async function loadEnvFile(file = path.join(ROOT, '.env'), { overrideEmpty = false } = {}) {
   let text;
   try {
     text = await readFile(file, 'utf8');
@@ -11,7 +11,9 @@ export async function loadEnvFile(file = path.join(ROOT, '.env')) {
   }
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (match && !(match[1] in process.env)) process.env[match[1]] = match[2].replace(/^["']|["']$/g, '');
+    if (!match) continue;
+    const current = process.env[match[1]];
+    if (current === undefined || (overrideEmpty && current === '')) process.env[match[1]] = match[2].replace(/^["']|["']$/g, '');
   }
 }
 

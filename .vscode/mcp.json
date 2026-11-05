@@ -10,11 +10,25 @@
       "type": "stdio",
       "command": "node",
       "args": ["${workspaceFolder}/scripts/mcp/github-server.mjs"],
-      "envFile": "${workspaceFolder}/.env"
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "GITHUB_TOKEN": "${input:github_token}"
+      }
     },
     "github": {
       "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${input:github_token}"
+      }
     }
-  }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github_token",
+      "description": "GitHub personal access token (Pull requests: read/write, Contents: read)",
+      "password": true
+    }
+  ]
 }

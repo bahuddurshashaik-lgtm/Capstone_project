@@ -80,7 +80,7 @@ tests/{unit,integration,helpers}
 3. `npm run pr:create:dry` to preview, then `npm run pr:create`. The title and body come from `docs/sdlc/pr-description.md`. Running it again updates the open PR instead of creating a second one.
 
 ## GitHub MCP server
-`scripts/mcp/github-server.mjs` is a dependency-free MCP server (stdio) named `todo-github`, registered in `.vscode/mcp.json`. It has one tool, `create_pull_request` (`dryRun` defaults to true; optional `head`, `base`, `title`, `bodyFile`), which opens or updates the PR idempotently and never pushes, merges or force-pushes. The token is read from `.env` through the `envFile` setting in `mcp.json`: set `GITHUB_TOKEN` in `.env` (never in `mcp.json`) and restart the server. Ask Copilot to "open the pull request (dry run first)".
+`scripts/mcp/github-server.mjs` is a dependency-free MCP server (stdio) named `todo-github`, registered in `.vscode/mcp.json`. It has one tool, `create_pull_request` (`dryRun` defaults to true; optional `head`, `base`, `title`, `bodyFile`), which opens or updates the PR idempotently and never pushes, merges or force-pushes. VS Code prompts once for the GitHub token (secure input `github_token`: hidden, stored by VS Code, never written to a file) the first time you start the server; the same input also authenticates the hosted `github` server. Alternatively, `GITHUB_TOKEN` in `.env` works for the terminal command `npm run pr:create` (and for `todo-github` when the prompt is left empty); never put the token in `mcp.json`. Ask Copilot to "open the pull request (dry run first)".
 
 ## Agents and the SDLC
 | Step | Agent | Prompt | Output |

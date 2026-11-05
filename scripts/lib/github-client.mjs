@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { loadEnvFile } from './confluence-client.mjs';
+import { loadEnvFile as loadBaseEnvFile } from './confluence-client.mjs';
 
-export { loadEnvFile };
+// VS Code may pass GITHUB_TOKEN as an empty string when the prompt is skipped; let .env fill it.
+export const loadEnvFile = (file) => loadBaseEnvFile(file, { overrideEmpty: true });
 
 // Accepts https and ssh remotes (with or without .git) and returns "owner/repo", or null.
 export function parseRemoteUrl(url) {

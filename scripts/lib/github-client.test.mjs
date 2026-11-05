@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GithubClient, parseRemoteUrl, readGithubConfig, splitPrDescription } from './github-client.mjs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { GithubClient, loadEnvFile, parseRemoteUrl, readGithubConfig, splitPrDescription } from './github-client.mjs';
 
 const FAKE = 'fake-tok-123';
 const config = { token: FAKE, repository: 'octo/app', baseBranch: 'main', apiUrl: 'https://api.github.com' };
@@ -19,6 +22,31 @@ test('readGithubConfig reports a missing token and applies defaults', () => {
   assert.throws(() => readGithubConfig({ GITHUB_TOKEN: 't' }, () => null), /GITHUB_REPOSITORY/);
   const result = readGithubConfig({ GH_TOKEN: 't' }, () => 'octo/app');
   assert.deepEqual(result, { token: 't', repository: 'octo/app', baseBranch: 'main', apiUrl: 'https://api.github.com' });
+});
+
+test('readGithubConfig treats an empty GITHUB_TOKEN as unset', () => {
+  assert.equal(readGithubConfig({ GITHUB_TOKEN: '', GH_TOKEN: 'gh' }, () => 'octo/app').token, 'gh');
+  assert.throws(() => readGithubConfig({ GITHUB_TOKEN: '' }, () => 'octo/app'), /Missing environment variables: GITHUB_TOKEN/);
+});
+
+test('loadEnvFile overrides an empty env var but keeps a non-empty one', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'env-test-'));
+  const file = path.join(dir, 'test.env');
+  const saved = { a: process.env.TEST_ENV_EMPTY, b: process.env.TEST_ENV_SET };
+  try {
+    await writeFile(file, 'TEST_ENV_EMPTY=from-file\nTEST_ENV_SET=from-file\n');
+    process.env.TEST_ENV_EMPTY = '';
+    process.env.TEST_ENV_SET = 'existing';
+    await loadEnvFile(file);
+    assert.equal(process.env.TEST_ENV_EMPTY, 'from-file');
+    assert.equal(process.env.TEST_ENV_SET, 'existing');
+  } finally {
+    for (const [key, value] of [['TEST_ENV_EMPTY', saved.a], ['TEST_ENV_SET', saved.b]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('splitPrDescription takes the first H1 as title and the rest as body', () => {
