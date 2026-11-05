@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>To Do</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="page-header">
+    <h1>To Do</h1>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <main class="page">
+    <p id="status-message" class="status-message" aria-live="polite"></p>
+
+    <section class="panel" aria-labelledby="form-heading">
+      <h2 id="form-heading">Add a task</h2>
+      <form id="task-form" novalidate>
+        <p id="form-error" class="field-error" role="alert" hidden></p>
+
+        <div class="field">
+          <label for="title">Title (required)</label>
+          <input id="title" name="title" type="text" autocomplete="off">
+          <p id="title-error" class="field-error" role="alert" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="description">Description (optional)</label>
+          <textarea id="description" name="description" rows="3"></textarea>
+          <p id="description-error" class="field-error" role="alert" hidden></p>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority">
+              <option value="Low">Low</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="High">High</option>
+            </select>
+            <p id="priority-error" class="field-error" role="alert" hidden></p>
+          </div>
+
+          <div class="field">
+            <label for="dueDate">Due date (optional)</label>
+            <input id="dueDate" name="dueDate" type="date">
+            <p id="dueDate-error" class="field-error" role="alert" hidden></p>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="submit-button" type="submit" class="primary">Add task</button>
+          <button id="cancel-edit-button" type="button" hidden>Cancel</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="filters-heading">
+      <h2 id="filters-heading">Filters</h2>
+      <form id="filter-form" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label for="filter-status">Status</label>
+            <select id="filter-status" name="status">
+              <option value="">All</option>
+              <option value="Open">Open</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="filter-priority">Priority</label>
+            <select id="filter-priority" name="priority">
+              <option value="">All</option>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+          </div>
+
+          <div class="field field-check">
+            <input id="filter-overdue" name="overdue" type="checkbox">
+            <label for="filter-overdue">Overdue only</label>
+          </div>
+
+          <div class="field field-action">
+            <button id="clear-filters" type="button">Clear filters</button>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="list-heading">
+      <h2 id="list-heading" tabindex="-1">Tasks</h2>
+      <p id="task-count" class="task-count"></p>
+      <p id="empty-state" class="empty-state" hidden></p>
+      <ul id="task-list" class="task-list"></ul>
+    </section>
+  </main>
+
+  <dialog id="delete-dialog" aria-labelledby="delete-heading" aria-describedby="delete-task-title">
+    <h2 id="delete-heading">Delete this task?</h2>
+    <p>You are about to delete: <strong id="delete-task-title"></strong></p>
+    <p>This cannot be undone.</p>
+    <div class="button-row">
+      <button id="delete-cancel" type="button" autofocus>Cancel</button>
+      <button id="delete-confirm" type="button" class="danger">Delete</button>
+    </div>
+  </dialog>
+</body>
+</html>

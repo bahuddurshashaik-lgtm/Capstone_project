@@ -1,0 +1,320 @@
+:root {
+  --color-bg: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-text: #1b1b1f;
+  --color-muted: #4a4f57;
+  --color-border: #6b7280;
+  --color-primary: #1a56c4;
+  --color-on-primary: #ffffff;
+  --color-danger: #a4161a;
+  --color-on-danger: #ffffff;
+  --color-error: #a4161a;
+  --color-overdue-bg: #fdecea;
+  --color-overdue-text: #8a1c1c;
+  --color-completed-bg: #e8f5ea;
+  --color-completed-text: #1e5e2f;
+  --color-focus: #0b3d91;
+  --radius: 6px;
+  --space: 1rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+.page-header {
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space);
+}
+
+.page-header h1 {
+  margin: 0 auto;
+  max-width: 48rem;
+}
+
+.page {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: var(--space);
+}
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: var(--space);
+  padding: var(--space);
+}
+
+/* ---- focus (NFR-7) ---- */
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ---- forms ---- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space);
+}
+
+.field-row > .field {
+  flex: 1 1 10rem;
+}
+
+.field-check {
+  align-items: center;
+  flex-direction: row;
+  gap: 0.5rem;
+}
+
+.field-action {
+  justify-content: flex-end;
+}
+
+label {
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="date"],
+select,
+textarea {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font: inherit;
+  padding: 0.5rem;
+  width: 100%;
+}
+
+input[type="checkbox"] {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+[aria-invalid="true"] {
+  border-color: var(--color-error);
+  border-width: 2px;
+}
+
+.field-error {
+  color: var(--color-error);
+  font-weight: 600;
+  margin: 0;
+}
+
+.field-error::before {
+  content: "Error: ";
+}
+
+/* ---- buttons ---- */
+
+button {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.5rem 0.9rem;
+}
+
+button.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+button.danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ---- messages ---- */
+
+.banner {
+  background: var(--color-overdue-bg);
+  border-bottom: 3px solid var(--color-overdue-text);
+  color: var(--color-overdue-text);
+  font-weight: 600;
+  padding: var(--space);
+}
+
+.status-message {
+  color: var(--color-muted);
+  min-height: 1.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.status-message.is-error {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.task-count {
+  color: var(--color-muted);
+  margin: 0 0 0.5rem;
+}
+
+.empty-state {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  padding: var(--space);
+  text-align: center;
+}
+
+/* ---- task list ---- */
+
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task {
+  border: 1px solid var(--color-border);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+}
+
+.task-overdue {
+  background: var(--color-overdue-bg);
+  border-left-color: var(--color-overdue-text);
+}
+
+.task-completed {
+  background: var(--color-completed-bg);
+  border-left-color: var(--color-completed-text);
+}
+
+.task-header {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.task-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-title.is-struck {
+  text-decoration: line-through;
+}
+
+.badge {
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0 0.6rem;
+}
+
+.badge-overdue {
+  color: var(--color-overdue-text);
+}
+
+.badge-completed {
+  color: var(--color-completed-text);
+}
+
+.task-description {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.task-completed-at {
+  margin: 0.25rem 0 0;
+}
+
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* ---- dialog ---- */
+
+dialog {
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  max-width: 28rem;
+  padding: var(--space);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}

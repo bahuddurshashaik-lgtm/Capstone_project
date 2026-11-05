@@ -192,6 +192,42 @@ test('the default directory is src/public', async () => {
   assert.match(probe[0].replaceAll('\\', '/'), /\/src\/public\/styles\.css$/);
 });
 
+test('the real page and stylesheet are served from src/public with the CSP header (T-25)', async () => {
+  const server = await startTestServer();
+  try {
+    const page = await server.request({ path: '/' });
+    assert.equal(page.status, 200);
+    assert.equal(page.headers['content-type'], 'text/html; charset=utf-8');
+    assert.match(page.text, /<title>To Do<\/title>/);
+    assertSecurityHeaders(page.headers, '/');
+
+    const styles = await server.request({ path: '/styles.css' });
+    assert.equal(styles.status, 200);
+    assert.equal(styles.headers['content-type'], 'text/css; charset=utf-8');
+    assert.match(styles.text, /:focus-visible/);
+    assertSecurityHeaders(styles.headers, '/styles.css');
+
+    const index = await server.request({ path: '/index.html' });
+    assert.equal(index.text, page.text);
+  } finally {
+    await server.stop();
+  }
+});
+
+test('the real UI modules that exist are served as JavaScript with the CSP header (T-25)', async () => {
+  const server = await startTestServer();
+  try {
+    for (const path of ['/view-model.js', '/api-client.js']) {
+      const result = await server.request({ path });
+      assert.equal(result.status, 200, path);
+      assert.equal(result.headers['content-type'], 'text/javascript; charset=utf-8', path);
+      assertSecurityHeaders(result.headers, path);
+    }
+  } finally {
+    await server.stop();
+  }
+});
+
 // ---- T-16: routing ----
 
 test('an unknown path gives 404 ROUTE_NOT_FOUND and never NOT_FOUND', async () => {
