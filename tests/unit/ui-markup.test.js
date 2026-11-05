@@ -27,6 +27,45 @@ const findById = (tagName, id) => openingTags(tagName).find((attributes) => attr
 
 const allIds = () => [...html.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]);
 
+// ---- app.js wiring (T-26..T-30) ----
+
+const appSource = await fsPromises.readFile(new URL('app.js', PUBLIC_DIRECTORY), 'utf8');
+
+test('app.js loads in Node without a DOM and does not start itself', async () => {
+  assert.equal(typeof globalThis.document, 'undefined');
+  const module = await import('../../src/public/app.js');
+  assert.ok(Array.isArray(module.UI_ELEMENT_IDS));
+});
+
+test('every element id that app.js looks up exists in index.html', async () => {
+  const { UI_ELEMENT_IDS } = await import('../../src/public/app.js');
+  const ids = new Set(allIds());
+  assert.ok(UI_ELEMENT_IDS.length > 0);
+  for (const id of UI_ELEMENT_IDS) assert.ok(ids.has(id), `index.html has no #${id}`);
+});
+
+test('app.js never builds markup from strings or runs strings as code (NFR-1)', () => {
+  const forbidden = [
+    /innerHTML/, /outerHTML/, /insertAdjacentHTML/, /document\.write/, /\beval\s*\(/, /new Function/,
+    /setAttribute\(\s*['"]style['"]/, /\.style\b/, /\.cssText/, /createContextualFragment/, /DOMParser/,
+  ];
+  for (const pattern of forbidden) assert.doesNotMatch(appSource, pattern, String(pattern));
+});
+
+test('app.js imports only allow-listed UI modules', () => {
+  const imports = [...appSource.matchAll(/from\s+'\.\/([\w-]+\.js)'/g)].map((match) => `/${match[1]}`);
+  assert.ok(imports.length >= 2);
+  for (const path of imports) assert.ok(STATIC_PATHS.includes(path), path);
+});
+
+test('every class that app.js gives to a task or a badge is styled', () => {
+  const classes = [...appSource.matchAll(/className:\s*['"`]([^'"`$]+)/g)].flatMap((match) => match[1].split(' '));
+  assert.ok(classes.length > 0);
+  for (const name of classes.filter((item) => item !== 'task-open' && !item.endsWith('-'))) {
+    assert.ok(css.includes(`.${name}`), `styles.css has no .${name}`);
+  }
+});
+
 // ---- contrast helpers (NFR-8) ----
 
 const FIELD_NAMES = ['title', 'description', 'priority', 'dueDate'];
