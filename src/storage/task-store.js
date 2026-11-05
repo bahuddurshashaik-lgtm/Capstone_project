@@ -1,7 +1,13 @@
 import fsPromises from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { STORE_CORRUPT, StoreError } from '../domain/errors.js';
+import { STORE_CORRUPT, STORE_WRITE_FAILED, StoreError } from '../domain/errors.js';
 import { checkStoreContent, STORE_VERSION } from './store-file-check.js';
+
+export const RENAME_RETRY_DELAYS_MS = Object.freeze([20, 50]);
+const RETRYABLE_RENAME_CODES = Object.freeze(['EPERM', 'EBUSY', 'EACCES']);
+const WRITE_FAILED_MESSAGE = 'Your change could not be saved. Nothing was changed. Try again.';
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const corruptError = (filePath, options) =>
   new StoreError(
@@ -17,11 +23,19 @@ const unreadableError = (filePath, options) =>
     options,
   );
 
-const emptyStoreText = () => `${JSON.stringify({ version: STORE_VERSION, tasks: [] }, null, 2)}\n`;
+const writeFailedError = (options) => new StoreError(STORE_WRITE_FAILED, WRITE_FAILED_MESSAGE, options);
+
+const storeText = (tasks) => `${JSON.stringify({ version: STORE_VERSION, tasks }, null, 2)}\n`;
+
+function assertMutationOutcome(outcome) {
+  if (typeof outcome !== 'object' || outcome === null || !Array.isArray(outcome.tasks)) {
+    throw new TypeError('A mutate function must return { tasks, result }.');
+  }
+}
 
 const freezeTasks = (tasks) => Object.freeze(tasks.map((task) => Object.freeze({ ...task })));
 
-export function createTaskStore({ filePath, fs = fsPromises }) {
+export function createTaskStore({ filePath, fs = fsPromises, pause = wait }) {
   if (typeof filePath !== 'string' || filePath === '') {
     throw new TypeError('createTaskStore needs a data file path.');
   }
@@ -29,6 +43,7 @@ export function createTaskStore({ filePath, fs = fsPromises }) {
   let tasks = null;
   let pendingLoad = null;
   let firstRun = false;
+  let queue = Promise.resolve();
 
   async function prepareDirectory() {
     try {
@@ -48,11 +63,52 @@ export function createTaskStore({ filePath, fs = fsPromises }) {
     }
   }
 
+  async function writeTempFile(text) {
+    const handle = await fs.open(tempPath, 'w');
+    try {
+      await handle.writeFile(text, 'utf8');
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  }
+
+  async function renameTempFile() {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await fs.rename(tempPath, filePath);
+        return;
+      } catch (error) {
+        const delay = RENAME_RETRY_DELAYS_MS[attempt];
+        if (delay === undefined || !RETRYABLE_RENAME_CODES.includes(error.code)) throw error;
+        await pause(delay);
+      }
+    }
+  }
+
+  async function removeTempFile() {
+    try {
+      await fs.rm(tempPath, { force: true });
+    } catch {
+      // The failed save is already reported; a leftover temp file is deleted at the next start.
+    }
+  }
+
+  async function saveTasks(list) {
+    try {
+      await writeTempFile(storeText(list));
+      await renameTempFile();
+    } catch (cause) {
+      await removeTempFile();
+      throw writeFailedError({ cause });
+    }
+  }
+
   async function createEmptyStore() {
     try {
-      await fs.writeFile(filePath, emptyStoreText(), { encoding: 'utf8', flag: 'wx' });
-    } catch (cause) {
-      throw unreadableError(filePath, { cause });
+      await saveTasks([]);
+    } catch (error) {
+      throw unreadableError(filePath, { cause: error });
     }
   }
 
@@ -89,5 +145,23 @@ export function createTaskStore({ filePath, fs = fsPromises }) {
     return { firstRun };
   }
 
-  return { filePath, initialize, readAll: ensureLoaded };
+  async function runMutation(change) {
+    const current = await ensureLoaded();
+    const outcome = await change(current);
+    assertMutationOutcome(outcome);
+    if (outcome.tasks !== current) {
+      const next = freezeTasks(outcome.tasks);
+      await saveTasks(next);
+      tasks = next;
+    }
+    return outcome.result;
+  }
+
+  function mutate(change) {
+    const run = queue.then(() => runMutation(change));
+    queue = run.catch(() => {});
+    return run;
+  }
+
+  return { filePath, initialize, readAll: ensureLoaded, mutate };
 }

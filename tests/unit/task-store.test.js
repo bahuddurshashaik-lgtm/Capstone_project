@@ -223,7 +223,7 @@ test('failing to create the data directory gives STORE_CORRUPT as unreadable', a
 });
 
 test('failing to create the first-run file gives STORE_CORRUPT as unreadable', async () => {
-  const fs = fakeFs({ writeFile: async () => Promise.reject(errorWithCode('EACCES')) });
+  const fs = fakeFs({ open: async () => Promise.reject(errorWithCode('EACCES')) });
 
   await assertStoreError(createTaskStore({ filePath, fs }).readAll(), 'STORE_CORRUPT', 'cannot be opened');
 });
@@ -258,4 +258,347 @@ test('once loaded, reads come from memory and do not read the file again', async
   await store.readAll();
 
   assert.equal(reads, 1);
+});
+
+// ---- write side: mutate ----
+
+const addTask = (task) => (tasks) => ({ tasks: [...tasks, task], result: task });
+const noPause = async () => {};
+
+async function seededStore(options = {}, tasks = []) {
+  await writeDataFile(fileContent(tasks));
+  return createTaskStore({ filePath, pause: noPause, ...options });
+}
+
+async function savedTasks() {
+  return JSON.parse(await readDataFile()).tasks;
+}
+
+function recordingFs(events, openedPaths = []) {
+  return fakeFs({
+    open: async (path, flags) => {
+      const handle = await fsPromises.open(path, flags);
+      openedPaths.push(path);
+      return {
+        writeFile: (...args) => handle.writeFile(...args),
+        sync: () => {
+          events.push('sync');
+          return handle.sync();
+        },
+        close: () => {
+          events.push('close');
+          return handle.close();
+        },
+      };
+    },
+    rename: async (...args) => {
+      events.push('rename');
+      return fsPromises.rename(...args);
+    },
+  });
+}
+
+function renameFailing(code, failures = Infinity) {
+  const state = { calls: 0 };
+  const fs = fakeFs({
+    rename: async (...args) => {
+      state.calls += 1;
+      if (state.calls <= failures) throw errorWithCode(code);
+      return fsPromises.rename(...args);
+    },
+  });
+  return { fs, state };
+}
+
+test('mutate saves the new list to the file, replaces memory and returns the result', async () => {
+  const store = await seededStore();
+  const task = storedTask();
+
+  const result = await store.mutate(addTask(task));
+
+  assert.deepEqual(result, task);
+  assert.deepEqual(await store.readAll(), [task]);
+  assert.deepEqual(await savedTasks(), [task]);
+  assert.deepEqual(JSON.parse(await readDataFile()).version, 1);
+});
+
+test('a saved file can be loaded by a new store (restart)', async () => {
+  const store = await seededStore();
+  const task = storedTask();
+  await store.mutate(addTask(task));
+
+  assert.deepEqual(await createTaskStore({ filePath }).readAll(), [task]);
+});
+
+test('mutate gives the function the current frozen list in creation order', async () => {
+  const first = storedTask({ title: 'First' });
+  const store = await seededStore({}, [first]);
+  let received;
+
+  await store.mutate((tasks) => {
+    received = tasks;
+    return { tasks: [...tasks, storedTask({ title: 'Second' })], result: null };
+  });
+
+  assert.deepEqual(received, [first]);
+  assert.ok(Object.isFrozen(received));
+});
+
+test('memory still holds the old list while the new one is being saved', async () => {
+  const seen = [];
+  let store;
+  const fs = fakeFs({
+    rename: async (...args) => {
+      seen.push((await store.readAll()).length);
+      return fsPromises.rename(...args);
+    },
+  });
+  store = await seededStore({ fs });
+
+  await store.mutate(addTask(storedTask()));
+
+  assert.deepEqual(seen, [0]);
+  assert.equal((await store.readAll()).length, 1);
+});
+
+test('two parallel mutate calls run one after the other and both changes persist', async () => {
+  const store = await seededStore();
+  const events = [];
+  const slowAdd = (label, task) => async (tasks) => {
+    events.push(`start ${label}`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    events.push(`end ${label}`);
+    return { tasks: [...tasks, task], result: label };
+  };
+
+  const results = await Promise.all([
+    store.mutate(slowAdd('A', storedTask({ title: 'A' }))),
+    store.mutate(slowAdd('B', storedTask({ title: 'B' }))),
+  ]);
+
+  assert.deepEqual(results, ['A', 'B']);
+  assert.deepEqual(events, ['start A', 'end A', 'start B', 'end B']);
+  assert.deepEqual((await savedTasks()).map((task) => task.title), ['A', 'B']);
+});
+
+test('a mutate that starts after another sees the change of the first', async () => {
+  const store = await seededStore();
+  const counts = [];
+  const countAndAdd = (tasks) => {
+    counts.push(tasks.length);
+    return { tasks: [...tasks, storedTask()], result: null };
+  };
+
+  await Promise.all([store.mutate(countAndAdd), store.mutate(countAndAdd), store.mutate(countAndAdd)]);
+
+  assert.deepEqual(counts, [0, 1, 2]);
+  assert.equal((await savedTasks()).length, 3);
+});
+
+test('the temp file is written in the data directory, flushed with fsync, then renamed', async () => {
+  const events = [];
+  const openedPaths = [];
+  const store = await seededStore({ fs: recordingFs(events, openedPaths) });
+
+  await store.mutate(addTask(storedTask()));
+
+  assert.deepEqual(events, ['sync', 'close', 'rename']);
+  assert.deepEqual(openedPaths, [`${filePath}.tmp`]);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('a mutate function that returns the same list writes nothing', async () => {
+  const events = [];
+  const store = await seededStore({ fs: recordingFs(events) }, [storedTask()]);
+
+  const result = await store.mutate((tasks) => ({ tasks, result: 'unchanged' }));
+
+  assert.equal(result, 'unchanged');
+  assert.deepEqual(events, []);
+});
+
+test('mutate awaits an async function', async () => {
+  const store = await seededStore();
+  const task = storedTask();
+
+  await store.mutate(async (tasks) => ({ tasks: [...tasks, task], result: null }));
+
+  assert.deepEqual(await savedTasks(), [task]);
+});
+
+// ---- write side: rename retry ----
+
+test('rename failing twice with EPERM and then succeeding saves the change after waits of 20 and 50 ms', async () => {
+  const { fs, state } = renameFailing('EPERM', 2);
+  const waits = [];
+  const store = await seededStore({ fs, pause: async (ms) => waits.push(ms) });
+  const task = storedTask();
+
+  await store.mutate(addTask(task));
+
+  assert.equal(state.calls, 3);
+  assert.deepEqual(waits, [20, 50]);
+  assert.deepEqual(await savedTasks(), [task]);
+  assert.deepEqual(await store.readAll(), [task]);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+for (const code of ['EBUSY', 'EACCES']) {
+  test(`rename failing once with ${code} is retried`, async () => {
+    const { fs, state } = renameFailing(code, 1);
+    const store = await seededStore({ fs });
+
+    await store.mutate(addTask(storedTask()));
+
+    assert.equal(state.calls, 2);
+    assert.equal((await savedTasks()).length, 1);
+  });
+}
+
+test('rename failing every time gives STORE_WRITE_FAILED and leaves memory and file unchanged', async () => {
+  const existing = storedTask({ title: 'Existing' });
+  const { fs, state } = renameFailing('EPERM');
+  const waits = [];
+  const store = await seededStore({ fs, pause: async (ms) => waits.push(ms) }, [existing]);
+  const before = await readDataFile();
+
+  await assertStoreError(
+    store.mutate(addTask(storedTask({ title: 'New' }))),
+    'STORE_WRITE_FAILED',
+    'could not be saved',
+  );
+
+  assert.equal(state.calls, 3);
+  assert.deepEqual(waits, [20, 50]);
+  assert.deepEqual(await store.readAll(), [existing]);
+  assert.equal(await readDataFile(), before);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('a rename error that is not on the retry list fails at once', async () => {
+  const { fs, state } = renameFailing('EIO');
+  const waits = [];
+  const store = await seededStore({ fs, pause: async (ms) => waits.push(ms) });
+
+  await assertStoreError(store.mutate(addTask(storedTask())), 'STORE_WRITE_FAILED');
+
+  assert.equal(state.calls, 1);
+  assert.deepEqual(waits, []);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('a failed temp file write gives STORE_WRITE_FAILED and removes the temp file', async () => {
+  const fs = fakeFs({
+    open: async (path, flags) => {
+      const handle = await fsPromises.open(path, flags);
+      return {
+        writeFile: async () => Promise.reject(errorWithCode('ENOSPC')),
+        sync: () => handle.sync(),
+        close: () => handle.close(),
+      };
+    },
+  });
+  const store = await seededStore({ fs });
+  const before = await readDataFile();
+
+  await assertStoreError(store.mutate(addTask(storedTask())), 'STORE_WRITE_FAILED');
+
+  assert.deepEqual(await store.readAll(), []);
+  assert.equal(await readDataFile(), before);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('a failed fsync gives STORE_WRITE_FAILED and the rename never happens', async () => {
+  const events = [];
+  const base = recordingFs(events);
+  const fs = {
+    ...base,
+    open: async (...args) => {
+      const handle = await base.open(...args);
+      return { ...handle, sync: async () => Promise.reject(errorWithCode('EIO')) };
+    },
+  };
+  const store = await seededStore({ fs });
+
+  await assertStoreError(store.mutate(addTask(storedTask())), 'STORE_WRITE_FAILED');
+
+  assert.ok(!events.includes('rename'));
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('after a failed save the next mutate works', async () => {
+  const { fs } = renameFailing('EPERM', 3);
+  const store = await seededStore({ fs });
+  await assertStoreError(store.mutate(addTask(storedTask({ title: 'Lost' }))), 'STORE_WRITE_FAILED');
+
+  await store.mutate(addTask(storedTask({ title: 'Kept' })));
+
+  assert.deepEqual((await savedTasks()).map((task) => task.title), ['Kept']);
+});
+
+// ---- write side: failures inside the change function ----
+
+test('a mutate function that throws leaves data unchanged and does not block the queue', async () => {
+  const existing = storedTask();
+  const store = await seededStore({}, [existing]);
+  const before = await readDataFile();
+  const failure = new Error('rule failed');
+
+  const failing = store.mutate(() => {
+    throw failure;
+  });
+  const following = store.mutate(addTask(storedTask({ title: 'After' })));
+
+  await assert.rejects(failing, (error) => error === failure);
+  await following;
+  assert.deepEqual((await savedTasks()).map((task) => task.title), ['Buy milk', 'After']);
+  assert.notEqual(await readDataFile(), before);
+  assert.equal((await store.readAll())[0].id, existing.id);
+});
+
+test('a throwing mutate function writes nothing', async () => {
+  const events = [];
+  const store = await seededStore({ fs: recordingFs(events) }, [storedTask()]);
+  const before = await readDataFile();
+
+  await assert.rejects(store.mutate(() => Promise.reject(new Error('no'))), /no/);
+
+  assert.deepEqual(events, []);
+  assert.equal(await readDataFile(), before);
+});
+
+test('a mutate function must return { tasks, result }', async () => {
+  const store = await seededStore();
+
+  await assert.rejects(store.mutate(() => []), TypeError);
+  await assert.rejects(store.mutate(() => undefined), TypeError);
+  await assert.rejects(store.mutate(() => ({ tasks: 'no' })), TypeError);
+
+  assert.deepEqual(await savedTasks(), []);
+});
+
+// ---- write side: corrupt store ----
+
+test('mutate on a corrupt store gives STORE_CORRUPT and never overwrites the file', async () => {
+  await writeDataFile('broken');
+  const events = [];
+  const store = createTaskStore({ filePath, fs: recordingFs(events) });
+
+  await assertStoreError(store.mutate(addTask(storedTask())), 'STORE_CORRUPT', filePath);
+
+  assert.equal(await readDataFile(), 'broken');
+  assert.deepEqual(events, []);
+  assert.deepEqual(await fsPromises.readdir(dataDir), ['tasks.json']);
+});
+
+test('after the file is repaired, mutate works without a restart', async () => {
+  await writeDataFile('broken');
+  const store = createTaskStore({ filePath });
+  await assertStoreError(store.mutate(addTask(storedTask())), 'STORE_CORRUPT');
+  await writeDataFile(fileContent([]));
+  const task = storedTask();
+
+  await store.mutate(addTask(task));
+
+  assert.deepEqual(await savedTasks(), [task]);
 });
