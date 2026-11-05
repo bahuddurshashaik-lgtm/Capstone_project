@@ -5,6 +5,13 @@ export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 500;
 export const PRIORITIES = Object.freeze(['Low', 'Medium', 'High']);
 export const DEFAULT_PRIORITY = 'Medium';
+export const STATUSES = Object.freeze(['Open', 'Completed']);
+
+const FILTER_VALUES = Object.freeze({
+  status: STATUSES,
+  priority: PRIORITIES,
+  overdue: Object.freeze(['true']),
+});
 
 export const MESSAGES = Object.freeze({
   invalidValue: 'Enter a valid value.',
@@ -16,6 +23,8 @@ export const MESSAGES = Object.freeze({
   pastDate: 'Due date cannot be in the past.',
   unknownField: 'Unknown field.',
   required: 'This field is required.',
+  status: 'Choose Open or Completed.',
+  invalidFilter: 'Invalid filter value.',
 });
 
 const EDITABLE_KEYS = Object.freeze(['title', 'description', 'priority', 'dueDate']);
@@ -133,4 +142,57 @@ export function validateNewTask(input, today) {
     missingRule: NEW_TASK_MISSING,
     previousDueDate: null,
   });
+}
+
+export function validateTaskUpdate(input, existingTask, today) {
+  return validateEditableFields(input, {
+    today,
+    missingRule: UPDATE_MISSING,
+    previousDueDate: existingTask.dueDate,
+  });
+}
+
+export function parseStatus(value) {
+  if (!STATUSES.includes(value)) return invalid(MESSAGES.status);
+  return valid(value);
+}
+
+export function validateStatus(input) {
+  requirePlainObject(input);
+  const errors = newErrorMap();
+  flagUnknownKeys(input, ['status'], errors);
+  const result = parseStatus(readField(input, 'status'));
+  if ('error' in result) errors.status = result.error;
+  throwIfAny(errors);
+  return result.value;
+}
+
+function readSingleQueryValue(query, name) {
+  const values = query.getAll(name);
+  if (values.length > 1) return invalid(MESSAGES.invalidFilter);
+  return valid(values[0] ?? '');
+}
+
+function parseFilterValue(query, name, allowedValues) {
+  const single = readSingleQueryValue(query, name);
+  if ('error' in single) return single;
+  if (single.value === '') return valid(null);
+  if (!allowedValues.includes(single.value)) return invalid(MESSAGES.invalidFilter);
+  return valid(single.value);
+}
+
+export function validateFilters(query) {
+  const errors = newErrorMap();
+  const allowedNames = Object.keys(FILTER_VALUES);
+  for (const name of new Set(query.keys())) {
+    if (!allowedNames.includes(name)) errors[name] = MESSAGES.unknownField;
+  }
+  const filters = {};
+  for (const name of allowedNames) {
+    const result = parseFilterValue(query, name, FILTER_VALUES[name]);
+    if ('error' in result) errors[name] = result.error;
+    else filters[name] = result.value;
+  }
+  throwIfAny(errors);
+  return { status: filters.status, priority: filters.priority, overdue: filters.overdue === 'true' };
 }

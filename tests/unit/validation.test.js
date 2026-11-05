@@ -7,7 +7,10 @@ import {
   parseDueDate,
   parsePriority,
   parseTitle,
+  validateFilters,
   validateNewTask,
+  validateStatus,
+  validateTaskUpdate,
 } from '../../src/domain/validation.js';
 
 const TODAY = '2026-11-05';
@@ -197,4 +200,160 @@ test('field parsers return a value or an error message', () => {
   assert.deepEqual(parseDueDate(null), { value: null });
   assert.deepEqual(parseDueDate('2024-02-29'), { value: '2024-02-29' });
   assert.deepEqual(parseDueDate('2025-02-29'), { error: MESSAGES.invalidDate });
+});
+
+// ---- validateTaskUpdate ----
+
+const existing = {
+  id: 'abc',
+  title: 'Old',
+  description: '',
+  priority: 'Low',
+  dueDate: '2026-11-01',
+  status: 'Open',
+  createdAt: '2026-10-01T00:00:00.000Z',
+  completedAt: null,
+};
+
+const fullEdit = (changes = {}) => ({
+  title: 'New',
+  description: 'text',
+  priority: 'High',
+  dueDate: '2026-11-01',
+  ...changes,
+});
+
+const update = (input, task = existing) => validateTaskUpdate(input, task, TODAY);
+
+test('validateTaskUpdate accepts all four fields and normalises the title', () => {
+  assert.deepEqual(update(fullEdit({ title: '  New  ', dueDate: '2026-12-01' })), {
+    title: 'New',
+    description: 'text',
+    priority: 'High',
+    dueDate: '2026-12-01',
+  });
+});
+
+test('validateTaskUpdate allows clearing the due date with null', () => {
+  assert.equal(update(fullEdit({ dueDate: null })).dueDate, null);
+});
+
+test('validateTaskUpdate requires every one of the four keys', () => {
+  for (const key of ['title', 'description', 'priority', 'dueDate']) {
+    const input = fullEdit();
+    delete input[key];
+    assert.deepEqual(fieldsOf(() => update(input)), { [key]: 'This field is required.' }, key);
+  }
+});
+
+test('validateTaskUpdate does not apply the create defaults', () => {
+  assert.deepEqual(Object.keys(fieldsOf(() => update({}))).sort(), ['description', 'dueDate', 'priority', 'title']);
+});
+
+test('an unchanged past due date is accepted on edit', () => {
+  assert.equal(update(fullEdit({ dueDate: '2026-11-01' })).dueDate, '2026-11-01');
+});
+
+test('a changed past due date is rejected on edit', () => {
+  assert.equal(fieldsOf(() => update(fullEdit({ dueDate: '2026-10-31' }))).dueDate, MESSAGES.pastDate);
+});
+
+test('a past due date is rejected when the task had no due date', () => {
+  const withoutDate = { ...existing, dueDate: null };
+  assert.equal(fieldsOf(() => update(fullEdit({ dueDate: '2026-11-01' }), withoutDate)).dueDate, MESSAGES.pastDate);
+});
+
+test('today and a future due date are accepted on edit', () => {
+  assert.equal(update(fullEdit({ dueDate: TODAY })).dueDate, TODAY);
+  assert.equal(update(fullEdit({ dueDate: '2027-01-01' })).dueDate, '2027-01-01');
+});
+
+test('edit uses the same field rules as create', () => {
+  assert.equal(fieldsOf(() => update(fullEdit({ title: '   ' }))).title, MESSAGES.titleRequired);
+  assert.equal(fieldsOf(() => update(fullEdit({ title: 'a'.repeat(101) }))).title, MESSAGES.titleTooLong);
+  assert.equal(fieldsOf(() => update(fullEdit({ description: 'd'.repeat(501) }))).description, MESSAGES.descriptionTooLong);
+  assert.equal(fieldsOf(() => update(fullEdit({ priority: 'Urgent' }))).priority, MESSAGES.priority);
+  assert.equal(fieldsOf(() => update(fullEdit({ dueDate: '' }))).dueDate, MESSAGES.invalidDate);
+  assert.equal(fieldsOf(() => update(fullEdit({ dueDate: '2026-02-30' }))).dueDate, MESSAGES.invalidDate);
+  assert.equal(fieldsOf(() => update(fullEdit({ title: 5 }))).title, MESSAGES.invalidValue);
+});
+
+test('edit rejects status, id and createdAt as unknown fields', () => {
+  const fields = fieldsOf(() => update(fullEdit({ status: 'Completed', id: 'x', createdAt: 'y' })));
+  assert.deepEqual(fields, { status: 'Unknown field.', id: 'Unknown field.', createdAt: 'Unknown field.' });
+});
+
+test('edit rejects a body that is not an object', () => {
+  assert.equal(fieldsOf(() => update(null)).body, MESSAGES.invalidValue);
+  assert.equal(fieldsOf(() => update([])).body, MESSAGES.invalidValue);
+});
+
+// ---- validateStatus ----
+
+test('validateStatus accepts Open and Completed', () => {
+  assert.equal(validateStatus({ status: 'Open' }), 'Open');
+  assert.equal(validateStatus({ status: 'Completed' }), 'Completed');
+});
+
+test('validateStatus rejects any other value, a missing status and a wrong type', () => {
+  for (const body of [{ status: 'Done' }, { status: 'open' }, { status: '' }, { status: null }, { status: 1 }, {}]) {
+    assert.equal(fieldsOf(() => validateStatus(body)).status, 'Choose Open or Completed.', JSON.stringify(body));
+  }
+});
+
+test('validateStatus rejects other keys and non-object bodies', () => {
+  assert.deepEqual(fieldsOf(() => validateStatus({ status: 'Open', title: 'x' })), { title: 'Unknown field.' });
+  assert.equal(fieldsOf(() => validateStatus('Open')).body, MESSAGES.invalidValue);
+  assert.equal(fieldsOf(() => validateStatus(null)).body, MESSAGES.invalidValue);
+});
+
+// ---- validateFilters ----
+
+const filtersFor = (queryString) => validateFilters(new URLSearchParams(queryString));
+
+test('validateFilters returns no filters for an empty query', () => {
+  assert.deepEqual(filtersFor(''), { status: null, priority: null, overdue: false });
+});
+
+test('validateFilters accepts each filter and all of them together', () => {
+  assert.equal(filtersFor('status=Open').status, 'Open');
+  assert.equal(filtersFor('status=Completed').status, 'Completed');
+  assert.equal(filtersFor('priority=Low').priority, 'Low');
+  assert.equal(filtersFor('overdue=true').overdue, true);
+  assert.deepEqual(filtersFor('status=Open&priority=High&overdue=true'), {
+    status: 'Open',
+    priority: 'High',
+    overdue: true,
+  });
+});
+
+test('validateFilters treats an empty value as not set', () => {
+  assert.deepEqual(filtersFor('status=&priority=&overdue='), { status: null, priority: null, overdue: false });
+});
+
+test('validateFilters rejects overdue=false and other overdue values', () => {
+  for (const value of ['false', '1', 'TRUE', 'yes']) {
+    assert.equal(fieldsOf(() => filtersFor(`overdue=${value}`)).overdue, 'Invalid filter value.', value);
+  }
+});
+
+test('validateFilters rejects unknown values', () => {
+  assert.equal(fieldsOf(() => filtersFor('status=Done')).status, MESSAGES.invalidFilter);
+  assert.equal(fieldsOf(() => filtersFor('status=open')).status, MESSAGES.invalidFilter);
+  assert.equal(fieldsOf(() => filtersFor('priority=Urgent')).priority, MESSAGES.invalidFilter);
+});
+
+test('validateFilters rejects a repeated key, even when the values are equal or empty', () => {
+  assert.equal(fieldsOf(() => filtersFor('status=Open&status=Completed')).status, MESSAGES.invalidFilter);
+  assert.equal(fieldsOf(() => filtersFor('status=Open&status=Open')).status, MESSAGES.invalidFilter);
+  assert.equal(fieldsOf(() => filtersFor('priority=&priority=')).priority, MESSAGES.invalidFilter);
+});
+
+test('validateFilters rejects unknown keys', () => {
+  assert.deepEqual(fieldsOf(() => filtersFor('sort=asc')), { sort: 'Unknown field.' });
+});
+
+test('validateFilters collects all errors together', () => {
+  const fields = fieldsOf(() => filtersFor('status=x&priority=y&overdue=false&foo=1'));
+  assert.deepEqual(Object.keys(fields).sort(), ['foo', 'overdue', 'priority', 'status']);
 });
