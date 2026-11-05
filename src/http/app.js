@@ -86,7 +86,13 @@ const ok = (json) => ({ status: 200, json });
 function apiRoutes(service) {
   const createTask = async ({ request }) => created(await service.createTask(await readJsonBody(request)));
   const listTasks = async ({ url }) => ok(await service.listTasks(url.searchParams));
-  return [{ segments: ['api', 'tasks'], methods: { GET: listTasks, POST: createTask } }];
+  const getTask = async ({ params }) => ok(await service.getTask(params.id));
+  const updateTask = async ({ params, request }) =>
+    ok(await service.updateTask(params.id, await readJsonBody(request)));
+  return [
+    { segments: ['api', 'tasks'], methods: { GET: listTasks, POST: createTask } },
+    { segments: ['api', 'tasks', ':id'], methods: { GET: getTask, PUT: updateTask } },
+  ];
 }
 
 function pickHandler(route, method) {
