@@ -1,5 +1,6 @@
 import { SECURITY_HEADERS, createStaticFiles } from './static-files.js';
 import { logError, mapError } from './error-mapper.js';
+import { readJsonBody } from './json-body.js';
 import { forbidden, methodNotAllowed, routeNotFound } from './request-error.js';
 
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -79,7 +80,12 @@ function staticRoutes(staticFiles) {
   return staticFiles.paths.map((path) => ({ segments: splitPath(path), methods: { GET: serve, HEAD: serve } }));
 }
 
-const apiRoutes = (service) => [];
+const created = (task) => ({ status: 201, json: task });
+
+function apiRoutes(service) {
+  const createTask = async ({ request }) => created(await service.createTask(await readJsonBody(request)));
+  return [{ segments: ['api', 'tasks'], methods: { POST: createTask } }];
+}
 
 function pickHandler(route, method) {
   if (!Object.hasOwn(route.methods, method)) throw methodNotAllowed(Object.keys(route.methods));
