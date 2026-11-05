@@ -91,9 +91,13 @@ function apiRoutes(service) {
     ok(await service.updateTask(params.id, await readJsonBody(request)));
   const setStatus = async ({ params, request }) =>
     ok(await service.setStatus(params.id, await readJsonBody(request)));
+  const deleteTask = async ({ params }) => {
+    await service.deleteTask(params.id);
+    return { status: 204 };
+  };
   return [
     { segments: ['api', 'tasks'], methods: { GET: listTasks, POST: createTask } },
-    { segments: ['api', 'tasks', ':id'], methods: { GET: getTask, PUT: updateTask } },
+    { segments: ['api', 'tasks', ':id'], methods: { GET: getTask, PUT: updateTask, DELETE: deleteTask } },
     { segments: ['api', 'tasks', ':id', 'status'], methods: { PUT: setStatus } },
   ];
 }
