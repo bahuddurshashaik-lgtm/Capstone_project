@@ -1,0 +1,20 @@
+{
+  "servers": {
+    "todo-confluence": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mcp/confluence-server.mjs"],
+      "envFile": "${workspaceFolder}/.env"
+    },
+    "todo-github": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mcp/github-server.mjs"],
+      "envFile": "${workspaceFolder}/.env"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}

@@ -23,6 +23,7 @@ for (const file of await listFiles('.github/agents', '.agent.md')) await checkFr
 for (const file of await listFiles('.github/prompts', '.prompt.md')) await checkFrontmatter(file, ['description']);
 for (const file of await listFiles('.github/instructions', '.instructions.md')) await checkFrontmatter(file, ['applyTo']);
 await checkFrontmatter('.github/skills/confluence-user-stories/SKILL.md', ['name', 'description']);
+await checkFrontmatter('.github/skills/github-pull-request/SKILL.md', ['name', 'description']);
 await checkFrontmatter('.github/skills/sdlc-artifacts/SKILL.md', ['name', 'description']);
 
 const hooksFile = path.join(ROOT, '.github/hooks/hooks.json');
