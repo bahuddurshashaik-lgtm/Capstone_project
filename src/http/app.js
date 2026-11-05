@@ -89,9 +89,12 @@ function apiRoutes(service) {
   const getTask = async ({ params }) => ok(await service.getTask(params.id));
   const updateTask = async ({ params, request }) =>
     ok(await service.updateTask(params.id, await readJsonBody(request)));
+  const setStatus = async ({ params, request }) =>
+    ok(await service.setStatus(params.id, await readJsonBody(request)));
   return [
     { segments: ['api', 'tasks'], methods: { GET: listTasks, POST: createTask } },
     { segments: ['api', 'tasks', ':id'], methods: { GET: getTask, PUT: updateTask } },
+    { segments: ['api', 'tasks', ':id', 'status'], methods: { PUT: setStatus } },
   ];
 }
 
