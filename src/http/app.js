@@ -81,10 +81,12 @@ function staticRoutes(staticFiles) {
 }
 
 const created = (task) => ({ status: 201, json: task });
+const ok = (json) => ({ status: 200, json });
 
 function apiRoutes(service) {
   const createTask = async ({ request }) => created(await service.createTask(await readJsonBody(request)));
-  return [{ segments: ['api', 'tasks'], methods: { POST: createTask } }];
+  const listTasks = async ({ url }) => ok(await service.listTasks(url.searchParams));
+  return [{ segments: ['api', 'tasks'], methods: { GET: listTasks, POST: createTask } }];
 }
 
 function pickHandler(route, method) {
