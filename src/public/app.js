@@ -6,6 +6,9 @@ import { describeError, describeTask, emptyStateMessage, listSummaryText } from 
 const ELEMENT_IDS = Object.freeze({
   banner: 'banner',
   statusMessage: 'status-message',
+  taskForm: 'task-form',
+  formError: 'form-error',
+  submitButton: 'submit-button',
   filterForm: 'filter-form',
   filterStatus: 'filter-status',
   filterPriority: 'filter-priority',
@@ -17,7 +20,14 @@ const ELEMENT_IDS = Object.freeze({
   emptyState: 'empty-state',
 });
 
-export const UI_ELEMENT_IDS = Object.freeze(Object.values(ELEMENT_IDS));
+const FIELD_NAMES = Object.freeze(['title', 'description', 'priority', 'dueDate']);
+const errorIdFor = (name) => `${name}-error`;
+
+export const UI_ELEMENT_IDS = Object.freeze([
+  ...Object.values(ELEMENT_IDS),
+  ...FIELD_NAMES,
+  ...FIELD_NAMES.map(errorIdFor),
+]);
 
 let ui = null;
 let api = null;
@@ -26,6 +36,7 @@ const state = {
   filters: { status: '', priority: '', overdue: false },
   tasksById: new Map(),
   refreshCount: 0,
+  busy: false,
 };
 
 // ---- DOM helpers ----
@@ -36,9 +47,17 @@ function requireElement(id) {
   return element;
 }
 
+function locateFields() {
+  const entries = FIELD_NAMES.map((name) => [
+    name,
+    { input: requireElement(name), error: requireElement(errorIdFor(name)) },
+  ]);
+  return Object.fromEntries(entries);
+}
+
 function locateElements() {
   const entries = Object.entries(ELEMENT_IDS).map(([name, id]) => [name, requireElement(id)]);
-  return Object.fromEntries(entries);
+  return { ...Object.fromEntries(entries), fields: locateFields() };
 }
 
 function createElement(tagName, { className, text, attributes = {} } = {}) {
@@ -184,9 +203,95 @@ async function clearAllFilters() {
   showMessage('Filters cleared.');
 }
 
+// ---- task form: create (FR-1, FR-2, FR-7, NFR-6) ----
+
+function readFormInput() {
+  const dueDate = ui.fields.dueDate.input.value;
+  return {
+    title: ui.fields.title.input.value,
+    description: ui.fields.description.input.value,
+    priority: ui.fields.priority.input.value,
+    dueDate: dueDate === '' ? null : dueDate,
+  };
+}
+
+function clearFieldErrors() {
+  for (const { input, error } of Object.values(ui.fields)) {
+    error.textContent = '';
+    error.hidden = true;
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-describedby');
+  }
+  ui.formError.textContent = '';
+  ui.formError.hidden = true;
+}
+
+function markFieldInvalid({ input, error }, text) {
+  error.textContent = text;
+  error.hidden = false;
+  input.setAttribute('aria-invalid', 'true');
+  input.setAttribute('aria-describedby', error.id);
+}
+
+function showFormError(texts) {
+  if (texts.length === 0) return;
+  ui.formError.textContent = texts.join(' ');
+  ui.formError.hidden = false;
+}
+
+function firstInvalidInput() {
+  const invalid = FIELD_NAMES.map((name) => ui.fields[name]).find((field) => !field.error.hidden);
+  return invalid?.input ?? null;
+}
+
+function showFieldErrors(fields) {
+  const unplaced = [];
+  for (const [name, text] of Object.entries(fields)) {
+    if (Object.hasOwn(ui.fields, name) && typeof text === 'string') markFieldInvalid(ui.fields[name], text);
+    else unplaced.push(String(text));
+  }
+  showFormError(unplaced);
+  firstInvalidInput()?.focus();
+}
+
+function handleFormError(error) {
+  if (describeError(error).display === 'fields') {
+    showFieldErrors(error.fields);
+    return undefined;
+  }
+  return reportError(error);
+}
+
+async function submitCreate() {
+  clearFieldErrors();
+  const result = await api.createTask(readFormInput());
+  if (!result.ok) {
+    await handleFormError(result.error);
+    return;
+  }
+  ui.taskForm.reset();
+  showMessage('Task added.');
+  await refreshList();
+  ui.fields.title.input.focus();
+}
+
+async function onFormSubmit(event) {
+  event.preventDefault();
+  if (state.busy) return;
+  state.busy = true;
+  ui.submitButton.disabled = true;
+  try {
+    await submitCreate();
+  } finally {
+    state.busy = false;
+    ui.submitButton.disabled = false;
+  }
+}
+
 // ---- start ----
 
 function bindEvents() {
+  ui.taskForm.addEventListener('submit', onFormSubmit);
   ui.filterForm.addEventListener('submit', (event) => event.preventDefault());
   ui.filterForm.addEventListener('change', applyFilters);
   ui.clearFilters.addEventListener('click', clearAllFilters);
