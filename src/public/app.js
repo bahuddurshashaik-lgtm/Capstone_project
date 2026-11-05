@@ -20,6 +20,10 @@ const ELEMENT_IDS = Object.freeze({
   taskCount: 'task-count',
   taskList: 'task-list',
   emptyState: 'empty-state',
+  deleteDialog: 'delete-dialog',
+  deleteTaskTitle: 'delete-task-title',
+  deleteCancel: 'delete-cancel',
+  deleteConfirm: 'delete-confirm',
 });
 
 const FIELD_NAMES = Object.freeze(['title', 'description', 'priority', 'dueDate']);
@@ -40,6 +44,7 @@ const state = {
   refreshCount: 0,
   busy: false,
   editingId: null,
+  deleteTargetId: null,
 };
 
 // ---- DOM helpers ----
@@ -159,6 +164,7 @@ function buildTaskActions(view) {
       label: view.toggle.label,
       accessibleName: `${view.toggle.label}: ${view.title}`,
     }),
+    buildActionButton({ action: 'delete', label: 'Delete', accessibleName: `Delete: ${view.title}` }),
   );
   return actions;
 }
@@ -400,6 +406,7 @@ async function toggleTask(id) {
 const TASK_ACTIONS = Object.freeze({
   edit: startEdit,
   toggle: toggleTask,
+  delete: askDelete,
 });
 
 function onListClick(event) {
@@ -410,12 +417,55 @@ function onListClick(event) {
   if (handler && id) handler(id, button);
 }
 
+// ---- delete with confirmation (FR-29..FR-32) ----
+
+function askDelete(id) {
+  const task = state.tasksById.get(id);
+  if (!task) return;
+  state.deleteTargetId = id;
+  ui.deleteTaskTitle.textContent = task.title;
+  ui.deleteDialog.showModal();
+}
+
+function cancelDelete() {
+  ui.deleteDialog.close('cancel');
+}
+
+// The native dialog traps focus. When it closes, focus goes back to the button that opened it.
+function onDeleteDialogClosed() {
+  const id = state.deleteTargetId;
+  state.deleteTargetId = null;
+  if (id) focusTaskAction(id, 'delete');
+}
+
+async function runDelete(id) {
+  const result = await api.deleteTask(id);
+  if (!result.ok) {
+    await handleTaskError(result.error, id);
+    focusListHeadingIfFocusLost();
+    return;
+  }
+  if (state.editingId === id) leaveEditMode();
+  showMessage('Task deleted.');
+  await refreshList();
+  focusListHeadingIfFocusLost();
+}
+
+async function confirmDelete() {
+  const id = state.deleteTargetId;
+  ui.deleteDialog.close('confirm');
+  if (id) await runDelete(id);
+}
+
 // ---- start ----
 
 function bindEvents() {
   ui.taskForm.addEventListener('submit', onFormSubmit);
   ui.cancelEditButton.addEventListener('click', cancelEdit);
   ui.taskList.addEventListener('click', onListClick);
+  ui.deleteCancel.addEventListener('click', cancelDelete);
+  ui.deleteConfirm.addEventListener('click', confirmDelete);
+  ui.deleteDialog.addEventListener('close', onDeleteDialogClosed);
   ui.filterForm.addEventListener('submit', (event) => event.preventDefault());
   ui.filterForm.addEventListener('change', applyFilters);
   ui.clearFilters.addEventListener('click', clearAllFilters);
