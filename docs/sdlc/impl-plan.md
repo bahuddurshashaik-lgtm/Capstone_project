@@ -54,7 +54,7 @@ Inputs: `docs/sdlc/requirements.md` (FR-1..FR-34, NFR-1..NFR-12), `docs/sdlc/arc
 | T-19 | Routes `GET /api/tasks/:id` and `PUT /api/tasks/:id` (US-003). | `src/http/app.js`, `tests/integration/api-edit.test.js` | FR-18..FR-21, FR-34, AD-4 | P1 | T-11, T-16 | M | Done |
 | T-20 | Route `PUT /api/tasks/:id/status` (US-004). | `src/http/app.js`, `tests/integration/api-status.test.js` | FR-23, FR-24, FR-26, FR-27, FR-28 | P0 | T-11, T-16 | S | Done |
 | T-21 | Route `DELETE /api/tasks/:id` (US-005). | `src/http/app.js`, `tests/integration/api-delete.test.js` | FR-30, FR-32, FR-33 | P1 | T-11, T-16 | S | Done |
-| T-22 | Entry point: wire config, clock, store, service and app; bind to `127.0.0.1`; print one line with the data file path on first run; on a listen error print one line and exit with code 1. Export a start function so tests can run it. | `src/server.js`, `tests/integration/server-startup.test.js` | NFR-3, NFR-10, AD-13, AD-15 | P0 | T-12, T-17..T-21 | M | Not started |
+| T-22 | Entry point: wire config, clock, store, service and app; bind to `127.0.0.1`; print one line with the data file path on first run; on a listen error print one line and exit with code 1. Export a start function so tests can run it. | `src/server.js`, `tests/integration/server-startup.test.js` | NFR-3, NFR-10, AD-13, AD-15 | P0 | T-12, T-17..T-21 | M | Done |
 
 ### 2.4 Web UI
 
