@@ -1,11 +1,12 @@
 import { ValidationError } from './errors.js';
 import { isBefore, isValidCalendarDate } from './dates.js';
+import { STATUS_COMPLETED, STATUS_OPEN } from './task.js';
 
 export const TITLE_MAX_LENGTH = 100;
 export const DESCRIPTION_MAX_LENGTH = 500;
 export const PRIORITIES = Object.freeze(['Low', 'Medium', 'High']);
 export const DEFAULT_PRIORITY = 'Medium';
-export const STATUSES = Object.freeze(['Open', 'Completed']);
+export const STATUSES = Object.freeze([STATUS_OPEN, STATUS_COMPLETED]);
 
 const FILTER_VALUES = Object.freeze({
   status: STATUSES,
