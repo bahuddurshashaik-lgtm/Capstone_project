@@ -18,12 +18,18 @@ Application code (already committed as 35 commits, T-1..T-35, on `main`):
 - `package.json`: adds the `test` script and `engines.node >=20`. `.gitignore`: excludes `data/`. `README.md`: how to run the app.
 - `CHANGELOG.md`: the existing "Added" bullet for the application is refined with the feature list. It is not duplicated.
 
-Not yet committed (untracked in the working tree):
+The following are on the feature branch `feature/todo-app-us-001-005` (commit `a822a3a`):
 
 - `docs/sdlc/` (`requirements.md`, `architecture.md`, `design-review.md`, `impl-plan.md`, `code-review.md`, `verification.md`, `pr-description.md`): the SDLC artifacts that trace each requirement to a task and a test.
-- `docs/user-stories/`, `scripts/`, `.github/`, `.vscode/`, `.env.example`, `src/.gitkeep`, `tests/*/.gitkeep`: project scaffold (agents, prompts, instructions, skills, hooks, Confluence publish and fetch scripts, workspace check). `.env.example` is a template only; no real `.env` file was read or changed.
+- `docs/user-stories/`, `scripts/`, `.github/`: project scaffold (agents, prompts, instructions, skills, hooks, Confluence publish and fetch scripts, workspace check).
 
-Git state: branch `main`, no feature branch yet, nothing pushed. A feature branch and a commit are made only when the user asks.
+Still untracked in the working tree (checked with `git status --short`): `.vscode/`, `.env.example`, `src/.gitkeep` and `tests/*/.gitkeep`. `.env.example` is a template only; no real `.env` file was read or changed.
+
+PR automation (added after the branch was pushed, not yet on the branch):
+
+- `scripts/github/create-pr.mjs`, `scripts/lib/github-client.mjs` and its test, `.github/skills/github-pull-request/SKILL.md`, `package.json` scripts `pr:create:dry` and `pr:create`, `.env.example` GitHub settings, and updates to the `pr-author` agent, the `08-pull-request` prompt, `scripts/validate-workspace.mjs` and `README.md`. They open or update this pull request from this file without a second PR, and never push, force-push or merge.
+
+Git state: branch `feature/todo-app-us-001-005` is pushed to origin and is 2 commits ahead of `main`. This PR targets `main`. The branch and commits were made at the user's request.
 
 ## Test Evidence
 

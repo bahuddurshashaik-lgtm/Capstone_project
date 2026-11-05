@@ -35,15 +35,17 @@ Example (PowerShell): `$env:PORT = "3100"; node src/server.js`
   agents/                      sdlc-orchestrator + 8 specialist agents
   prompts/                     01..08 step prompts, run-sdlc, publish-user-stories
   instructions/                coding, documentation and script rules
-  skills/                      confluence-user-stories, sdlc-artifacts
+  skills/                      confluence-user-stories, github-pull-request, sdlc-artifacts
   hooks/hooks.json             session, prompt, tool and error hooks
 docs/
   user-stories/                user-stories.json (source), user-stories.md (generated)
   sdlc/                        requirements, architecture, design-review, impl-plan, ...
 scripts/
   confluence/                  publish-user-stories.mjs, fetch-page.mjs
+  github/                      create-pr.mjs
   hooks/                       hook implementations
   lib/                         shared helpers + tests
+  mcp/                         confluence-server.mjs, github-server.mjs (MCP servers) + tests
   user-stories/                markdown export
 src/
   server.js                    entry point (reads PORT and TODO_DATA_FILE)
@@ -72,6 +74,14 @@ tests/{unit,integration,helpers}
 ## Confluence MCP server
 `scripts/mcp/confluence-server.mjs` is a dependency-free MCP server (stdio) named `todo-confluence`, registered in `.vscode/mcp.json`. VS Code prompts for your Atlassian email and API token (stored as secure inputs, never in files). Tools: `list_user_stories`, `publish_user_stories` (`dryRun` defaults to true), `get_page`, `upsert_page`. Start it from the MCP servers list in VS Code, then ask Copilot to "publish the user stories to Confluence".
 
+## Open a pull request
+1. `copy .env.example .env` (if you have not already) and set `GITHUB_TOKEN` ([create a token](https://github.com/settings/tokens) with Pull requests: Read and write and Contents: Read on this repository).
+2. Push your feature branch with normal git, for example `git push -u origin <branch>`. The script never pushes, force-pushes or merges.
+3. `npm run pr:create:dry` to preview, then `npm run pr:create`. The title and body come from `docs/sdlc/pr-description.md`. Running it again updates the open PR instead of creating a second one.
+
+## GitHub MCP server
+`scripts/mcp/github-server.mjs` is a dependency-free MCP server (stdio) named `todo-github`, registered in `.vscode/mcp.json`. It has one tool, `create_pull_request` (`dryRun` defaults to true; optional `head`, `base`, `title`, `bodyFile`), which opens or updates the PR idempotently and never pushes, merges or force-pushes. The token is read from `.env` through the `envFile` setting in `mcp.json`: set `GITHUB_TOKEN` in `.env` (never in `mcp.json`) and restart the server. Ask Copilot to "open the pull request (dry run first)".
+
 ## Agents and the SDLC
 | Step | Agent | Prompt | Output |
 |---|---|---|---|
@@ -91,4 +101,4 @@ tests/{unit,integration,helpers}
 - `postToolUse`, `userPromptSubmitted`, `errorOccurred`, `sessionStart`, `sessionEnd` write redacted JSONL logs to `logs/` (git-ignored).
 
 ## Commands
-`npm run check` (validate agents/prompts/hooks) | `npm run test:scripts` | `npm run stories:md`
+`npm run check` (validate agents/prompts/hooks) | `npm run test:scripts` | `npm run stories:md` | `npm run pr:create:dry`
