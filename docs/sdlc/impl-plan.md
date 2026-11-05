@@ -44,7 +44,7 @@ Inputs: `docs/sdlc/requirements.md` (FR-1..FR-34, NFR-1..NFR-12), `docs/sdlc/arc
 
 | Task | Description | Files touched | Requirements | Priority | Depends on | Size | Status |
 |------|-------------|---------------|--------------|----------|------------|------|--------|
-| T-12 | Config: read `PORT` (default 3000, validated) and `TODO_DATA_FILE`; default file `<project root>/data/tasks.json` resolved from `import.meta.url`. Reads no `.env` file. | `src/config.js`, `tests/unit/config.test.js` | NFR-3, AD-16 | P0 | T-1 | S | Not started |
+| T-12 | Config: read `PORT` (default 3000, validated) and `TODO_DATA_FILE`; default file `<project root>/data/tasks.json` resolved from `import.meta.url`. Reads no `.env` file. | `src/config.js`, `tests/unit/config.test.js` | NFR-3, AD-16 | P0 | T-1 | S | Done |
 | T-13 | JSON body reader: byte count while reading, limit 16 KB, content type `application/json` on write requests, JSON syntax check. | `src/http/json-body.js`, `tests/unit/json-body.test.js` | NFR-2, AD-11 | P0 | T-2 | S | Not started |
 | T-14 | Error mapper: domain and store errors to status code and the error body shape; all codes of architecture 6.2; no stack trace in the body; log code and message only. | `src/http/error-mapper.js`, `tests/unit/error-mapper.test.js` | FR-21, FR-28, FR-32, NFR-2, NFR-3, NFR-6, NFR-10, AD-9 | P0 | T-2 | S | Not started |
 | T-15 | Static file server: fixed allow-list of files under `src/public/`, content types, no URL-to-path join, security headers (CSP, `nosniff`, `Referrer-Policy`). The directory is injectable for tests. | `src/http/static-files.js`, `tests/integration/api-security.test.js` | NFR-1, NFR-3, AD-8 | P0 | T-1 | S | Not started |
