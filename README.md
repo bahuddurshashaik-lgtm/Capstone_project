@@ -45,7 +45,7 @@ scripts/
   github/                      create-pr.mjs
   hooks/                       hook implementations
   lib/                         shared helpers + tests
-  mcp/                         confluence-server.mjs, github-server.mjs (MCP servers) + tests
+  mcp/                         confluence-server.mjs, github-server.mjs, git-server.mjs (MCP servers) + tests
   user-stories/                markdown export
 src/
   server.js                    entry point (reads PORT and TODO_DATA_FILE)
@@ -81,6 +81,17 @@ tests/{unit,integration,helpers}
 
 ## GitHub MCP server
 `scripts/mcp/github-server.mjs` is a dependency-free MCP server (stdio) named `todo-github`, registered in `.vscode/mcp.json`. It has one tool, `create_pull_request` (`dryRun` defaults to true; optional `head`, `base`, `title`, `bodyFile`), which opens or updates the PR idempotently and never pushes, merges or force-pushes. VS Code prompts once for the GitHub token (secure input `github_token`: hidden, stored by VS Code, never written to a file) the first time you start the server; the same input also authenticates the hosted `github` server. Alternatively, `GITHUB_TOKEN` in `.env` works for the terminal command `npm run pr:create` (and for `todo-github` when the prompt is left empty); never put the token in `mcp.json`. Ask Copilot to "open the pull request (dry run first)".
+
+## Git MCP server
+`scripts/mcp/git-server.mjs` is a dependency-free MCP server (stdio) named `todo-git`, registered in `.vscode/mcp.json` (`npm run mcp:git`). It runs the local git steps that precede the PR using your normal git credentials (no token or `.env` needed); the git logic lives in `scripts/lib/git-tools.mjs` and always uses argument arrays, never a shell. Tools:
+- `git_status`: branch, upstream, ahead/behind and changed files.
+- `git_log`: `limit` (1-50, default 10) and optional `range`; returns hash and subject.
+- `git_diff_stat`: `git diff --stat <base>...HEAD` (`base` defaults to `main`).
+- `create_branch`: `name` is validated; creates and switches with `git switch -c`; refuses existing branches.
+- `commit`: `message` and `files` (explicit repo-relative paths); `dryRun` defaults to true. Refuses `.env` files (except `.env.example`), `logs/`, `node_modules/`, files containing token patterns, and commits on `main`; appends the `Co-authored-by: Copilot` trailer.
+- `push`: `dryRun` defaults to true and optional `branch`; only `git push -u origin <branch>`, never `main`/`master`, never force.
+
+There is no merge, reset, rebase, clean or generic "run git" tool. Errors redact token-like strings and credentials in remote URLs. Ask Copilot to "create a branch, commit these files and push (dry run first)", then open the PR with `todo-github`.
 
 ## Agents and the SDLC
 | Step | Agent | Prompt | Output |
