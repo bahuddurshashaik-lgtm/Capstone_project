@@ -1,0 +1,75 @@
+{
+  "application": "To Do Application",
+  "stories": [
+    {
+      "id": "US-001",
+      "title": "Create a task",
+      "persona": "user",
+      "want": "to add a new task with a title, optional description, priority and due date",
+      "benefit": "I can capture work I need to do before I forget it",
+      "priority": "High",
+      "acceptanceCriteria": [
+        "A title is mandatory and limited to 100 characters; an empty title shows a validation error.",
+        "Description (max 500 characters), priority (Low/Medium/High, default Medium) and due date are optional.",
+        "A due date in the past is rejected with a clear message.",
+        "After saving, the new task appears at the top of the task list with status Open."
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "View and filter the task list",
+      "persona": "user",
+      "want": "to see all my tasks and filter them by status, priority or due date",
+      "benefit": "I can focus on what matters most right now",
+      "priority": "High",
+      "acceptanceCriteria": [
+        "The list shows title, priority, due date and status for every task.",
+        "Filters for status (Open/Completed), priority and overdue are available and can be combined.",
+        "Overdue open tasks are visually highlighted.",
+        "When no task matches, an empty-state message is shown instead of a blank screen."
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Edit a task",
+      "persona": "user",
+      "want": "to change the title, description, priority or due date of an existing task",
+      "benefit": "I can keep my tasks accurate as plans change",
+      "priority": "Medium",
+      "acceptanceCriteria": [
+        "The same validation rules as task creation apply to edits.",
+        "Saving updates the task in place and refreshes the list.",
+        "Editing a task that no longer exists shows a 'Task not found' message.",
+        "Cancelling the edit leaves the task unchanged."
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Mark a task complete or reopen it",
+      "persona": "user",
+      "want": "to mark a task as completed and reopen it if needed",
+      "benefit": "I can track my progress and correct mistakes",
+      "priority": "High",
+      "acceptanceCriteria": [
+        "Toggling status moves a task between Open and Completed with one action.",
+        "Completed tasks show a completion timestamp and are visually distinct.",
+        "Reopening a task clears its completion timestamp.",
+        "The status change persists after reloading the application."
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Delete a task",
+      "persona": "user",
+      "want": "to delete a task I no longer need",
+      "benefit": "my list stays clean and relevant",
+      "priority": "Medium",
+      "acceptanceCriteria": [
+        "A confirmation prompt is shown before a task is deleted.",
+        "Confirming removes the task permanently from the list and storage.",
+        "Cancelling the prompt keeps the task.",
+        "Deleting a task that is already gone is handled gracefully with a 'Task not found' message."
+      ]
+    }
+  ]
+}

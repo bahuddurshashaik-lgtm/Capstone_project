@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      { "type": "command", "bash": "node scripts/hooks/session-start.mjs", "powershell": "node scripts/hooks/session-start.mjs", "cwd": ".", "timeoutSec": 10 }
+    ],
+    "userPromptSubmitted": [
+      { "type": "command", "bash": "node scripts/hooks/user-prompt-submitted.mjs", "powershell": "node scripts/hooks/user-prompt-submitted.mjs", "cwd": ".", "timeoutSec": 10 }
+    ],
+    "preToolUse": [
+      { "type": "command", "bash": "node scripts/hooks/pre-tool-use.mjs", "powershell": "node scripts/hooks/pre-tool-use.mjs", "cwd": ".", "timeoutSec": 10 }
+    ],
+    "postToolUse": [
+      { "type": "command", "bash": "node scripts/hooks/post-tool-use.mjs", "powershell": "node scripts/hooks/post-tool-use.mjs", "cwd": ".", "timeoutSec": 10 }
+    ],
+    "errorOccurred": [
+      { "type": "command", "bash": "node scripts/hooks/error-occurred.mjs", "powershell": "node scripts/hooks/error-occurred.mjs", "cwd": ".", "timeoutSec": 10 }
+    ],
+    "sessionEnd": [
+      { "type": "command", "bash": "node scripts/hooks/session-end.mjs", "powershell": "node scripts/hooks/session-end.mjs", "cwd": ".", "timeoutSec": 10 }
+    ]
+  }
+}
