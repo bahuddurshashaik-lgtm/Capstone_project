@@ -3,6 +3,9 @@
 All notable changes to this project are documented here ([Keep a Changelog](https://keepachangelog.com)).
 
 ## [Unreleased]
+### Changed
+- README: states that the `pr-author` agent never merges or force-pushes. Documentation only, no code change.
+
 ### Added
 - To Do application (US-001..US-005): create, list and filter, edit, complete or reopen, and delete tasks in a local web UI served on `127.0.0.1`, with a JSON file store configured by `PORT` and `TODO_DATA_FILE`. It has no runtime dependencies and needs Node.js 20 or later (tested on Node 26 only).
   - Task fields: title (1-100 characters), optional description (up to 500), priority (default Medium) and optional due date. Past due dates are rejected.

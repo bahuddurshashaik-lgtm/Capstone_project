@@ -107,6 +107,8 @@ There is no merge, reset, rebase, clean or generic "run git" tool. Errors redact
 
 `sdlc-orchestrator` (`/run-sdlc`) chains all steps with human approval between them.
 
+The `pr-author` agent never merges and never force-pushes; a human reviews and merges every PR.
+
 ## Hooks (`.github/hooks/hooks.json`)
 - `preToolUse` blocks force-push, hard reset, recursive deletes, piped installers, `npm publish`, and edits to `.env`/key files or content containing secrets.
 - `postToolUse`, `userPromptSubmitted`, `errorOccurred`, `sessionStart`, `sessionEnd` write redacted JSONL logs to `logs/` (git-ignored).
