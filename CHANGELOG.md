@@ -4,6 +4,7 @@ All notable changes to this project are documented here ([Keep a Changelog](http
 
 ## [Unreleased]
 ### Changed
+- UI: the primary button ("Add task") is now teal (`#0f766e`) instead of blue; white text contrast is about 5.5:1.
 - README: states that the `pr-author` agent never merges or force-pushes. Documentation only, no code change.
 
 ### Added
