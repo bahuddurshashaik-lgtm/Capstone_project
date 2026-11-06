@@ -10,10 +10,7 @@
       "type": "stdio",
       "command": "node",
       "args": ["${workspaceFolder}/scripts/mcp/github-server.mjs"],
-      "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "GITHUB_TOKEN": "${input:github_token}"
-      }
+      "envFile": "${workspaceFolder}/.env"
     },
     "todo-git": {
       "type": "stdio",
@@ -21,19 +18,10 @@
       "args": ["${workspaceFolder}/scripts/mcp/git-server.mjs"]
     },
     "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${input:github_token}"
-      }
+      "type": "stdio",
+      "command": "npx.cmd",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "envFile": "${workspaceFolder}/.env"
     }
-  },
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "github_token",
-      "description": "GitHub personal access token (Pull requests: read/write, Contents: read)",
-      "password": true
-    }
-  ]
+  }
 }
