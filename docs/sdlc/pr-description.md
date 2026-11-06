@@ -23,13 +23,15 @@ The following are on the feature branch `feature/todo-app-us-001-005` (commit `a
 - `docs/sdlc/` (`requirements.md`, `architecture.md`, `design-review.md`, `impl-plan.md`, `code-review.md`, `verification.md`, `pr-description.md`): the SDLC artifacts that trace each requirement to a task and a test.
 - `docs/user-stories/`, `scripts/`, `.github/`: project scaffold (agents, prompts, instructions, skills, hooks, Confluence publish and fetch scripts, workspace check).
 
-Still untracked in the working tree (checked with `git status --short`): `.vscode/`, `.env.example`, `src/.gitkeep` and `tests/*/.gitkeep`. `.env.example` is a template only; no real `.env` file was read or changed.
+Local working tree (checked with `git status --short`): `.env.example` and `.vscode/mcp.json` have uncommitted edits. `.env.example` is a template only; no real `.env` file was read or changed.
 
-PR automation (added after the branch was pushed, not yet on the branch):
+PR and git automation (also on the branch, commits `018bbe7` to `2698f3e`):
 
-- `scripts/github/create-pr.mjs`, `scripts/lib/github-client.mjs` and its test, `.github/skills/github-pull-request/SKILL.md`, `package.json` scripts `pr:create:dry` and `pr:create`, `.env.example` GitHub settings, and updates to the `pr-author` agent, the `08-pull-request` prompt, `scripts/validate-workspace.mjs` and `README.md`. They open or update this pull request from this file without a second PR, and never push, force-push or merge.
+- `scripts/github/create-pr.mjs`, `scripts/lib/github-client.mjs` and its test, `scripts/lib/pull-request.mjs`, `.github/skills/github-pull-request/SKILL.md`, and `package.json` scripts `pr:create:dry` and `pr:create`. They open or update this pull request from this file without a second PR, and never push, force-push or merge.
+- `scripts/mcp/git-server.mjs`, `scripts/lib/git-tools.mjs` and their tests (`todo-git` MCP server: branch, commit and push, each with `dryRun`), and `scripts/mcp/github-server.mjs` with its test (`todo-github`).
+- `.env.example`: placeholders only for Confluence and GitHub settings. Updates to the `pr-author` agent, the `08-pull-request` prompt, `scripts/validate-workspace.mjs` and `README.md`.
 
-Git state: branch `feature/todo-app-us-001-005` is pushed to origin and is 2 commits ahead of `main`. This PR targets `main`. The branch and commits were made at the user's request.
+Git state: branch `feature/todo-app-us-001-005` is pushed to origin and is 7 commits ahead of `main` (72 files, 3677 insertions, 3 deletions). This PR targets `main`. The branch and commits were made at the user's request. Uncommitted local edits to `.env.example` and `.vscode/mcp.json` are not part of this PR unless committed.
 
 ## Test Evidence
 

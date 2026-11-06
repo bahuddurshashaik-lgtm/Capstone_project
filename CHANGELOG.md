@@ -12,3 +12,6 @@ All notable changes to this project are documented here ([Keep a Changelog](http
   - 480 automated tests (`npm test`), including a 1,000-task performance test.
 - Project scaffold: SDLC agents, prompts, instructions, skills and hooks.
 - Five user stories and Confluence publish/fetch scripts.
+- Pull request automation: `npm run pr:create:dry` and `npm run pr:create` open or update the PR from `docs/sdlc/pr-description.md` without a second PR. They never push, force-push or merge.
+- MCP servers `todo-git` (branch, commit, push with `dryRun`), `todo-github` (create pull request with `dryRun`) and `todo-confluence`, with tests, and a `github-pull-request` skill.
+- `.env.example` with placeholders only for Confluence and GitHub settings.
